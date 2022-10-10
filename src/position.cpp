@@ -279,6 +279,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, Th
   // handle also common incorrect FEN with fullmove = 0.
   gamePly = std::max(2 * (gamePly - 1), 0) + (sideToMove == BLACK);
 
+  applyRule50 = Options["Syzygy50MoveRule"];
   chess960 = isChess960;
   thisThread = th;
   set_state(st);
@@ -1173,7 +1174,7 @@ bool Position::see_ge(Move m, Value threshold) const {
 
 bool Position::is_draw(int ply) const {
 
-  if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
+  if (applyRule50 && st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
       return true;
 
   // Return a draw score if a position repeats once earlier but strictly
@@ -1187,6 +1188,9 @@ bool Position::is_draw(int ply) const {
 
 bool Position::has_repeated() const {
 
+    if (!applyRule50)
+        return false;
+        
     StateInfo* stc = st;
     int end = std::min(st->rule50, st->pliesFromNull);
     while (end-- >= 4)

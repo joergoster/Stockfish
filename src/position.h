@@ -202,6 +202,7 @@ private:
   Color sideToMove;
   Score psq;
   bool chess960;
+  bool applyRule50;
 };
 
 extern std::ostream& operator<<(std::ostream& os, const Position& pos);
@@ -368,7 +369,7 @@ inline int Position::game_ply() const {
 }
 
 inline int Position::rule50_count() const {
-  return st->rule50;
+  return applyRule50 ? st->rule50 : 0;
 }
 
 inline bool Position::opposite_bishops() const {
