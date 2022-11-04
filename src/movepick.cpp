@@ -143,12 +143,13 @@ void MovePicker::score() {
                     :                                         !(to_sq(m) & threatenedByPawn)  ? 15000
                     :                                                                           0)
                     :                                                                           0);
+
           // Bonus for giving check
           m.value += bool(pos.check_squares(type_of(pos.moved_piece(m))) & to_sq(m)) * 16384;
 
           // Bonus for pawn moves
-          m.value += type_of(pos.moved_piece(m)) == PAWN ? 512 * edge_distance(file_of(to_sq(m)))
-                                                         + 256 * relative_rank(pos.side_to_move(), to_sq(m)) : 0;
+          m.value += type_of(pos.moved_piece(m)) == PAWN ? 4096 * edge_distance(file_of(to_sq(m)))
+                                                         + 2048 * relative_rank(pos.side_to_move(), to_sq(m)) : 0;
       }
       else // Type == EVASIONS
       {
