@@ -147,9 +147,9 @@ void MovePicker::score() {
           // Bonus for giving check
           m.value += bool(pos.check_squares(type_of(pos.moved_piece(m))) & to_sq(m)) * 16384;
 
-          // Bonus for pawn moves
-          m.value += type_of(pos.moved_piece(m)) == PAWN ? 4096 * edge_distance(file_of(to_sq(m)))
-                                                         + 2048 * relative_rank(pos.side_to_move(), to_sq(m)) : 0;
+          // Bonus per rank for pawn moves
+          if (type_of(pos.moved_piece(m)) == PAWN)
+              m.value += 2048 * relative_rank(pos.side_to_move(), to_sq(m));
       }
       else // Type == EVASIONS
       {
