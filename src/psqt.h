@@ -16,39 +16,23 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
 
-#include "bitboard.h"
-#include "endgame.h"
-#include "misc.h"
-#include "position.h"
-#include "psqt.h"
-#include "search.h"
-#include "syzygy/tbprobe.h"
-#include "thread.h"
-#include "tt.h"
-#include "uci.h"
+#ifndef PSQT_H_INCLUDED
+#define PSQT_H_INCLUDED
 
-using namespace Stockfish;
 
-int main(int argc, char* argv[]) {
+#include "types.h"
 
-  std::cout << engine_info() << std::endl;
 
-  CommandLine::init(argc, argv);
-  UCI::init(Options);
-  Tune::init();
-  PSQT::init();
-  Bitboards::init();
-  Position::init();
-  Bitbases::init();
-  Endgames::init();
-  Threads.set(size_t(Options["Threads"]));
-  Search::clear(); // After threads are up
-  Eval::NNUE::init();
+namespace Stockfish::PSQT
+{
 
-  UCI::loop(argc, argv);
+extern Score psq[PIECE_NB][SQUARE_NB];
 
-  Threads.set(0);
-  return 0;
-}
+// Fill psqt array from a set of internally linked parameters
+extern void init();
+
+} // namespace Stockfish::PSQT
+
+
+#endif // PSQT_H_INCLUDED

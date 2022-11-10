@@ -16,39 +16,22 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
+// Class for difference calculation of NNUE evaluation function
 
-#include "bitboard.h"
-#include "endgame.h"
-#include "misc.h"
-#include "position.h"
-#include "psqt.h"
-#include "search.h"
-#include "syzygy/tbprobe.h"
-#include "thread.h"
-#include "tt.h"
-#include "uci.h"
+#ifndef NNUE_ACCUMULATOR_H_INCLUDED
+#define NNUE_ACCUMULATOR_H_INCLUDED
 
-using namespace Stockfish;
+#include "nnue_architecture.h"
 
-int main(int argc, char* argv[]) {
+namespace Stockfish::Eval::NNUE {
 
-  std::cout << engine_info() << std::endl;
+  // Class that holds the result of affine transformation of input features
+  struct alignas(CacheLineSize) Accumulator {
+    std::int16_t accumulation[2][TransformedFeatureDimensions];
+    std::int32_t psqtAccumulation[2][PSQTBuckets];
+    bool computed[2];
+  };
 
-  CommandLine::init(argc, argv);
-  UCI::init(Options);
-  Tune::init();
-  PSQT::init();
-  Bitboards::init();
-  Position::init();
-  Bitbases::init();
-  Endgames::init();
-  Threads.set(size_t(Options["Threads"]));
-  Search::clear(); // After threads are up
-  Eval::NNUE::init();
+}  // namespace Stockfish::Eval::NNUE
 
-  UCI::loop(argc, argv);
-
-  Threads.set(0);
-  return 0;
-}
+#endif // NNUE_ACCUMULATOR_H_INCLUDED
