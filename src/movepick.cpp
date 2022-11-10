@@ -113,12 +113,17 @@ void MovePicker::score() {
                    + (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))];
 
       else if constexpr (Type == QUIETS)
+      {
           m.value =      (*mainHistory)[pos.side_to_move()][from_to(m)]
                    + 2 * (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
                    +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)];
 
+          // Bonus for pawn moves
+          m.value += type_of(pos.moved_piece(m)) == PAWN ? 512 * edge_distance(file_of(to_sq(m)))
+                                                         + 256 * relative_rank(pos.side_to_move(), to_sq(m)) : 0;
+      }
       else // Type == EVASIONS
       {
           if (pos.capture(m))
