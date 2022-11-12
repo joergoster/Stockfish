@@ -23,6 +23,7 @@
 
 #include "misc.h"
 #include "movepick.h"
+#include "position.h"
 #include "types.h"
 
 namespace Stockfish {
@@ -30,10 +31,6 @@ namespace Stockfish {
 class Position;
 
 namespace Search {
-
-// Different node types, used as a template parameter
-enum NodeType { NonPV, PV, Root };
-
 
 /// LimitsType struct stores information sent by GUI about available time to
 /// search the current move, maximum depth/time, or if we are in analysis mode.
@@ -102,9 +99,21 @@ struct Stack {
   int doubleExtensions;
 };
 
+template <NodeType nodeType>
+Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
+
+template <NodeType nodeType>
+Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
 void init();
 void clear();
+void update_pv(Move* pv, Move move, Move* childPv);
+Value value_to_tt(Value v, int ply);
+Value value_from_tt(Value v, int ply);
+void update_all_stats(const Position& pos, Stack* ss, Move bestMove, Value bestValue, Value beta, Square prevSq,
+                      Move* quietsSearched, int quietCount, Move* capturesSearched, int captureCount, Depth depth);
+void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus);
+void update_quiet_stats(const Position& pos, Stack* ss, Move move, int bonus);
 
 constexpr int CounterMovePruneThreshold = 0;
 

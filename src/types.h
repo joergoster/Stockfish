@@ -133,6 +133,10 @@ enum MoveType {
   CASTLING  = 3 << 14
 };
 
+enum NodeType {
+  NonPV, PV, Root
+};
+
 enum Color {
   WHITE, BLACK, COLOR_NB = 2
 };

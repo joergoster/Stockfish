@@ -24,10 +24,7 @@
 #include <sstream>
 
 #include "evaluate.h"
-#include "misc.h"
 #include "movegen.h"
-#include "movepick.h"
-#include "position.h"
 #include "search.h"
 #include "thread.h"
 #include "timeman.h"
@@ -84,20 +81,6 @@ namespace {
   Value value_draw(Thread* thisThread) {
     return VALUE_DRAW + Value(2 * (thisThread->nodes & 1) - 1);
   }
-
-  template <NodeType nodeType>
-  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
-
-  template <NodeType nodeType>
-  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
-
-  Value value_to_tt(Value v, int ply);
-  Value value_from_tt(Value v, int ply);
-  void update_pv(Move* pv, Move move, Move* childPv);
-  void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus);
-  void update_quiet_stats(const Position& pos, Stack* ss, Move move, int bonus);
-  void update_all_stats(const Position& pos, Stack* ss, Move bestMove, Value bestValue, Value beta, Square prevSq,
-                        Move* quietsSearched, int quietCount, Move* capturesSearched, int captureCount, Depth depth);
 
   // perft() is our utility to verify move generation. All the leaf nodes up
   // to the given depth are generated and counted, and the sum is returned.
@@ -472,7 +455,7 @@ void Thread::search() {
 }
 
 
-namespace {
+namespace Search {
 
   // search<>() is the main search function for both PV and non-PV nodes
 
@@ -1567,6 +1550,16 @@ moves_loop: // When in check, search starts here
   }
 
 
+  // update_pv() adds current move and appends child pv[]
+
+  void update_pv(Move* pv, Move move, Move* childPv) {
+
+    for (*pv++ = move; childPv && *childPv != MOVE_NONE; )
+        *pv++ = *childPv++;
+    *pv = MOVE_NONE;
+  }
+
+
   // value_to_tt() adjusts a mate or TB score from "plies to mate from the root" to
   // "plies to mate from the current position". Standard scores are unchanged.
   // The function is called before storing a value in the transposition table.
@@ -1591,16 +1584,6 @@ moves_loop: // When in check, search starts here
 
     return  v >= VALUE_TB_WIN_IN_MAX_PLY  ? v - ply :
             v <= VALUE_TB_LOSS_IN_MAX_PLY ? v + ply : v;
-  }
-
-
-  // update_pv() adds current move and appends child pv[]
-
-  void update_pv(Move* pv, Move move, Move* childPv) {
-
-    for (*pv++ = move; childPv && *childPv != MOVE_NONE; )
-        *pv++ = *childPv++;
-    *pv = MOVE_NONE;
   }
 
 
@@ -1692,7 +1675,7 @@ moves_loop: // When in check, search starts here
     }
   }
 
-} // namespace
+} // namespace Search
 
 
 /// MainThread::check_time() is used to print debug info and, more importantly,
