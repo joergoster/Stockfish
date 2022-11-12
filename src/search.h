@@ -31,29 +31,29 @@ class Position;
 
 namespace Search {
 
-/// Threshold used for countermoves based pruning
-constexpr int CounterMovePruneThreshold = 0;
+// Different node types, used as a template parameter
+enum NodeType { NonPV, PV, Root };
 
 
-/// Stack struct keeps track of the information we need to remember from nodes
-/// shallower and deeper in the tree during the search. Each search thread has
-/// its own array of Stack objects, indexed by the current ply.
+/// LimitsType struct stores information sent by GUI about available time to
+/// search the current move, maximum depth/time, or if we are in analysis mode.
 
-struct Stack {
-  Move* pv;
-  PieceToHistory* continuationHistory;
-  int ply;
-  Move currentMove;
-  Move excludedMove;
-  Move killers[2];
-  Value staticEval;
-  Depth depth;
-  int statScore;
-  int moveCount;
-  bool inCheck;
-  bool ttPv;
-  bool ttHit;
-  int doubleExtensions;
+struct LimitsType {
+
+  LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
+    time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] = npmsec = movetime = TimePoint(0);
+    movestogo = depth = mate = perft = infinite = 0;
+    nodes = 0;
+  }
+
+  bool use_time_management() const {
+    return time[WHITE] || time[BLACK];
+  }
+
+  std::vector<Move> searchmoves;
+  TimePoint time[COLOR_NB], inc[COLOR_NB], npmsec, movetime, startTime;
+  int movestogo, depth, mate, perft, infinite;
+  int64_t nodes;
 };
 
 
@@ -80,34 +80,36 @@ struct RootMove {
   std::vector<Move> pv;
 };
 
-typedef std::vector<RootMove> RootMoves;
 
+/// Stack struct keeps track of the information we need to remember from nodes
+/// shallower and deeper in the tree during the search. Each search thread has
+/// its own array of Stack objects, indexed by the current ply.
 
-/// LimitsType struct stores information sent by GUI about available time to
-/// search the current move, maximum depth/time, or if we are in analysis mode.
-
-struct LimitsType {
-
-  LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
-    time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] = npmsec = movetime = TimePoint(0);
-    movestogo = depth = mate = perft = infinite = 0;
-    nodes = 0;
-  }
-
-  bool use_time_management() const {
-    return time[WHITE] || time[BLACK];
-  }
-
-  std::vector<Move> searchmoves;
-  TimePoint time[COLOR_NB], inc[COLOR_NB], npmsec, movetime, startTime;
-  int movestogo, depth, mate, perft, infinite;
-  int64_t nodes;
+struct Stack {
+  Move* pv;
+  PieceToHistory* continuationHistory;
+  int ply;
+  Move currentMove;
+  Move excludedMove;
+  Move killers[2];
+  Value staticEval;
+  Depth depth;
+  int statScore;
+  int moveCount;
+  bool inCheck;
+  bool ttPv;
+  bool ttHit;
+  int doubleExtensions;
 };
 
-extern LimitsType Limits;
 
 void init();
 void clear();
+
+constexpr int CounterMovePruneThreshold = 0;
+
+extern LimitsType Limits;
+typedef std::vector<RootMove> RootMoves;
 
 } // namespace Search
 
