@@ -890,34 +890,37 @@ namespace {
 
     // Step 11. If the position is not in TT, decrease depth by 3.
     // Use qsearch if depth is equal or below zero (~4 Elo)
-    if (    PvNode
-        && !ttMove)
-        depth -= 3;
+    if (!ttMove)
+    {
+        depth -= PvNode ? 3 : 0;
 
-    if (depth <= 0)
-        return qsearch<PV>(pos, ss, alpha, beta);
+        if (depth <= 0)
+            return qsearch<PV>(pos, ss, alpha, beta);
 
-    if (    cutNode
-        &&  depth >= 9
-        && !ttMove)
-        depth -= 2;
+        if (   cutNode
+            && depth >= 9)
+            depth -= 2;
+    }
+    
+
 
 moves_loop: // When in check, search starts here
 
     // Step 12. A small Probcut idea, when we are in check (~0 Elo)
-    probCutBeta = beta + 417;
-    if (   ss->inCheck
-        && !PvNode
-        && depth >= 2
+    if (  !PvNode
+        && ss->inCheck
         && ttCapture
+        && depth >= 2
         && (tte->bound() & BOUND_LOWER)
         && tte->depth() >= depth - 3
-        && ttValue >= probCutBeta
         && abs(ttValue) <= VALUE_KNOWN_WIN
-        && abs(beta) <= VALUE_KNOWN_WIN
-       )
-        return probCutBeta;
+        && abs(beta) <= VALUE_KNOWN_WIN)
+    {
+        probCutBeta = beta + 417;
 
+        if (ttValue >= probCutBeta)
+            return probCutBeta;
+    }
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
