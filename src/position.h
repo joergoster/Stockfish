@@ -126,6 +126,7 @@ public:
   bool legal(Move m) const;
   bool pseudo_legal(const Move m) const;
   bool capture(Move m) const;
+  bool queen_promotion(Move m) const;
   bool gives_check(Move m) const;
   Piece moved_piece(Move m) const;
   Piece captured_piece() const;
@@ -385,6 +386,11 @@ inline bool Position::capture(Move m) const {
   assert(is_ok(m));
   // Castling is encoded as "king captures rook"
   return (!empty(to_sq(m)) && type_of(m) != CASTLING) || type_of(m) == EN_PASSANT;
+}
+
+inline bool Position::queen_promotion(Move m) const {
+  assert(is_ok(m));
+  return type_of(m) == PROMOTION && promotion_type(m) == QUEEN;
 }
 
 inline Piece Position::captured_piece() const {

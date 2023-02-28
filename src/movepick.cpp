@@ -215,8 +215,9 @@ top:
       [[fallthrough]];
 
   case REFUTATION:
-      if (select<Next>([&](){ return    *cur != MOVE_NONE
+      if (select<Next>([&](){ return   *cur != MOVE_NONE
                                     && !pos.capture(*cur)
+                                    && !pos.queen_promotion(*cur)
                                     &&  pos.pseudo_legal(*cur); }))
           return *(cur - 1);
       ++stage;
