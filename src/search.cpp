@@ -732,8 +732,6 @@ namespace {
     }
     else if (excludedMove)
     {
-        // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 elo)
-        Eval::NNUE::hint_common_parent_position(pos);
         eval = ss->staticEval;
         complexity = abs(ss->staticEval - pos.psq_eg_stm());
     }
@@ -741,14 +739,11 @@ namespace {
     {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = tte->eval();
+
         if (eval == VALUE_NONE)
             ss->staticEval = eval = evaluate(pos, &complexity);
         else // Fall back to (semi)classical complexity for TT hits, the NNUE complexity is lost
-        {
             complexity = abs(ss->staticEval - pos.psq_eg_stm());
-            if (PvNode)
-               Eval::NNUE::hint_common_parent_position(pos);
-        }
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -758,6 +753,7 @@ namespace {
     else
     {
         ss->staticEval = eval = evaluate(pos, &complexity);
+
         // Save static evaluation into transposition table
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
@@ -899,8 +895,6 @@ namespace {
                     return value;
                 }
             }
-
-        Eval::NNUE::hint_common_parent_position(pos);
     }
 
     // Step 11. If the position is not in TT, decrease depth by 3.

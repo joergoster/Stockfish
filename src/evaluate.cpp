@@ -1068,6 +1068,7 @@ Value Eval::evaluate(const Position& pos, int* complexity) {
       Color stm = pos.side_to_move();
       Value optimism = pos.this_thread()->optimism[stm];
 
+      NNUE::hint_common_parent_position(pos);
       Value nnue = NNUE::evaluate(pos, true, &nnueComplexity);
 
       // Blend nnue complexity with (semi)classical complexity
