@@ -19,6 +19,8 @@
 #ifndef SEARCH_H_INCLUDED
 #define SEARCH_H_INCLUDED
 
+#include <atomic>
+#include <unordered_map>
 #include <vector>
 
 #include "misc.h"
@@ -81,6 +83,8 @@ struct RootMove {
 };
 
 using RootMoves = std::vector<RootMove>;
+
+using NodesPerPV = std::unordered_map<Move, std::atomic_uint64_t>;
 
 
 /// LimitsType struct stores information sent by GUI about available time to

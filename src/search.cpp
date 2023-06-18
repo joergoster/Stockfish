@@ -112,6 +112,8 @@ namespace {
     Move best = MOVE_NONE;
   };
 
+  NodesPerPV multipvnodes;
+
   template <NodeType nodeType>
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
 
@@ -195,6 +197,12 @@ void MainThread::search() {
   Time.init(Limits, us, rootPos.game_ply());
   TT.new_search();
 
+  // Clear and initialize the map for collecting
+  // the nodes per PV line.
+  multipvnodes.clear();
+  for (auto& rm : rootMoves)
+      multipvnodes[rm.pv[0]] = 0;
+
   Eval::NNUE::verify();
 
   if (rootMoves.empty())
@@ -268,9 +276,9 @@ void Thread::search() {
   // The latter is needed for statScore and killer initialization.
   Stack stack[MAX_PLY+10], *ss = stack+7;
   Move  pv[MAX_PLY+1];
-  Value alpha, beta, delta;
+  Value alpha, beta, delta, bestScore;
   Move  lastBestMove = MOVE_NONE;
-  Depth lastBestMoveDepth = 0;
+  Depth pvDepth, lastBestMoveDepth = 0;
   MainThread* mainThread = (this == Threads.main() ? Threads.main() : nullptr);
   double timeReduction = 1, totBestMoveChanges = 0;
   Color us = rootPos.side_to_move();
@@ -324,10 +332,11 @@ void Thread::search() {
       // Save the last iteration's scores before first PV line is searched and
       // all the move scores except the (new) PV are set to -VALUE_INFINITE.
       for (RootMove& rm : rootMoves)
-          rm.previousScore = rm.score;
+          rm.previousScore = rm.score, rm.score = -VALUE_INFINITE;
 
       size_t pvFirst = 0;
       pvLast = 0;
+      bestScore = rootMoves[0].previousScore;
 
       if (!Threads.increaseDepth)
           searchAgainCounter++;
@@ -345,6 +354,7 @@ void Thread::search() {
 
           // Reset UCI info selDepth for each depth and each PV line
           selDepth = 0;
+          pvDepth = rootDepth;
 
           // Reset aspiration window starting size
           int prev = int(rootMoves[pvIdx].averageScore);
@@ -357,6 +367,25 @@ void Thread::search() {
           optimism[ us] = Value(opt);
           optimism[~us] = -optimism[us];
 
+          // Reduce the search depth for this PV line based on
+          // root move's previous score and number of PV line.
+          // TODO Also take into account: type of position,
+          // type of move (pawn move, checking move, capture/sacrifice, knight forks, etc.)
+          if (pvIdx)
+          {
+              int diffScore = (bestScore - prev) / (PawnValueEg / 4);
+              pvDepth = std::max(rootDepth - (3 * diffScore + 2 * msb(pvIdx + 1)) / 4, std::max(rootDepth / 2, 4));
+
+              if (rootPos.gives_check(rootMoves[pvIdx].pv[0]))
+                  pvDepth += pvDepth + 6 < rootDepth ? 2 : 1;
+
+              else if (   rootPos.capture_stage(rootMoves[pvIdx].pv[0])
+                       || type_of(rootPos.piece_on(from_sq(rootMoves[pvIdx].pv[0]))) == PAWN)
+                  pvDepth += rootPos.non_pawn_material() <= EndgameLimit ? 2 : 1;
+
+              pvDepth = std::min(pvDepth, rootDepth);
+          }
+
           // Start with a small aspiration window and, in the case of a fail
           // high/low, re-search with a bigger window until we don't fail
           // high/low anymore.
@@ -365,7 +394,8 @@ void Thread::search() {
           {
               // Adjust the effective depth searched, but ensuring at least one effective increment for every
               // four searchAgain steps (see issue #2717).
-              Depth adjustedDepth = std::max(1, rootDepth - failedHighCnt - 3 * (searchAgainCounter + 1) / 4);
+              Depth adjustedDepth = std::max(1, pvDepth - failedHighCnt - 3 * (searchAgainCounter + 1) / 4);
+
               bestValue = Stockfish::search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
 
               // Bring the best move to the front. It is critical that sorting
@@ -714,7 +744,8 @@ namespace {
     }
     else if (excludedMove)
     {
-        // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
+        // Providing the hint that this node's accumulator will
+        // be used often brings significant Elo gain (13 Elo).
         Eval::NNUE::hint_common_parent_position(pos);
         eval = ss->staticEval;
     }
@@ -870,6 +901,7 @@ namespace {
                                                                           [to_sq(move)];
 
                 pos.do_move(move, st);
+                multipvnodes[thisThread->rootMoves[thisThread->pvIdx].pv[0]].fetch_add(1, std::memory_order_relaxed);
 
                 // Perform a preliminary qsearch to verify that the move holds
                 value = -qsearch<NonPV>(pos, ss+1, -probCutBeta, -probCutBeta+1);
@@ -959,7 +991,7 @@ moves_loop: // When in check, search starts here
       ss->moveCount = ++moveCount;
 
       if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000)
-          sync_cout << "info depth " << depth
+          sync_cout << "info depth " << thisThread->rootDepth
                     << " currmove " << UCI::move(move, pos.is_chess960())
                     << " currmovenumber " << moveCount + thisThread->pvIdx << sync_endl;
       if (PvNode)
@@ -1145,6 +1177,7 @@ moves_loop: // When in check, search starts here
 
       // Step 16. Make the move
       pos.do_move(move, st, givesCheck);
+      multipvnodes[thisThread->rootMoves[thisThread->pvIdx].pv[0]].fetch_add(1, std::memory_order_relaxed);
 
       // Decrease reduction if position is or has been on the PV
       // and node is not likely to fail low. (~3 Elo)
@@ -1597,6 +1630,8 @@ moves_loop: // When in check, search starts here
 
         // Step 7. Make and search the move
         pos.do_move(move, st, givesCheck);
+        multipvnodes[thisThread->rootMoves[thisThread->pvIdx].pv[0]].fetch_add(1, std::memory_order_relaxed);
+
         value = -qsearch<nodeType>(pos, ss+1, -beta, -alpha, depth - 1);
         pos.undo_move(move);
 
@@ -1870,10 +1905,11 @@ string UCI::pv(const Position& pos, Depth depth) {
   size_t multiPV = std::min((size_t)Options["MultiPV"], rootMoves.size());
   uint64_t nodesSearched = Threads.nodes_searched();
   uint64_t tbHits = Threads.tb_hits() + (TB::RootInTB ? rootMoves.size() : 0);
+  const int hashfull = elapsed > 1000 ? TT.hashfull() : 0;
 
   for (size_t i = 0; i < multiPV; ++i)
   {
-      bool updated = rootMoves[i].score != -VALUE_INFINITE;
+      bool updated = i <= pvIdx && rootMoves[i].score != -VALUE_INFINITE;
 
       if (depth == 1 && !updated && i > 0)
           continue;
@@ -1891,9 +1927,10 @@ string UCI::pv(const Position& pos, Depth depth) {
           ss << "\n";
 
       ss << "info"
+         << " time "     << elapsed
+         << " multipv "  << i + 1
          << " depth "    << d
          << " seldepth " << rootMoves[i].selDepth
-         << " multipv "  << i + 1
          << " score "    << UCI::value(v);
 
       if (Options["UCI_ShowWDL"])
@@ -1902,11 +1939,11 @@ string UCI::pv(const Position& pos, Depth depth) {
       if (i == pvIdx && !tb && updated) // tablebase- and previous-scores are exact
          ss << (rootMoves[i].scoreLowerbound ? " lowerbound" : (rootMoves[i].scoreUpperbound ? " upperbound" : ""));
 
-      ss << " nodes "    << nodesSearched
+      ss << " nodes "    << (multiPV > 1 ? multipvnodes[rootMoves[i].pv[0]].load(std::memory_order_relaxed)
+                                         : nodesSearched)
          << " nps "      << nodesSearched * 1000 / elapsed
-         << " hashfull " << TT.hashfull()
+         << " hashfull " << hashfull
          << " tbhits "   << tbHits
-         << " time "     << elapsed
          << " pv";
 
       for (Move m : rootMoves[i].pv)
