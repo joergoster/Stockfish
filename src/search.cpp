@@ -332,7 +332,7 @@ void Thread::search() {
       // Save the last iteration's scores before first PV line is searched and
       // all the move scores except the (new) PV are set to -VALUE_INFINITE.
       for (RootMove& rm : rootMoves)
-          rm.previousScore = rm.score, rm.score = -VALUE_INFINITE;
+          rm.previousScore = rm.score;
 
       size_t pvFirst = 0;
       pvLast = 0;
@@ -358,7 +358,7 @@ void Thread::search() {
 
           // Reset aspiration window starting size
           int prev = int(rootMoves[pvIdx].averageScore);
-          delta = Value(11) + prev * prev / 15368 + 16 * (multiPV > 1);
+          delta = Value(10) + prev * prev / 15799 + 16 * (multiPV > 1);
           alpha = std::max(Value(prev) - delta,-VALUE_INFINITE);
           beta  = std::min(Value(prev) + delta, VALUE_INFINITE);
 
@@ -371,10 +371,10 @@ void Thread::search() {
           // root move's previous score and number of PV line.
           // TODO Also take into account: type of position,
           // type of move (pawn move, checking move, capture/sacrifice, knight forks, etc.)
-          if (pvIdx)
+          if (pvIdx > 1 && rootDepth > 4)
           {
               int diffScore = (bestScore - prev) / (PawnValueEg / 4);
-              pvDepth = std::max(rootDepth - (3 * diffScore + 2 * msb(pvIdx + 1)) / 4, std::max(rootDepth / 2, 4));
+              pvDepth = std::max(rootDepth - (3 * diffScore + 2 * msb(pvIdx)) / 4, std::max(rootDepth / 2, 4));
 
               if (rootPos.gives_check(rootMoves[pvIdx].pv[0]))
                   pvDepth += pvDepth + 6 < rootDepth ? 2 : 1;
