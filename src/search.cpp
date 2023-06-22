@@ -371,7 +371,7 @@ void Thread::search() {
           // root move's previous score and number of PV line.
           // TODO Also take into account: type of position,
           // type of move (pawn move, checking move, capture/sacrifice, knight forks, etc.)
-          if (pvIdx > 1 && rootDepth > 4)
+          if (pvIdx && rootDepth > 4)
           {
               int diffScore = (bestScore - prev) / (PawnValueEg / 4);
               pvDepth = std::max(rootDepth - (3 * diffScore + 2 * msb(pvIdx)) / 4, std::max(rootDepth / 2, 4));
@@ -383,7 +383,7 @@ void Thread::search() {
                        || type_of(rootPos.piece_on(from_sq(rootMoves[pvIdx].pv[0]))) == PAWN)
                   pvDepth += rootPos.non_pawn_material() <= EndgameLimit ? 2 : 1;
 
-              pvDepth = std::min(pvDepth, rootDepth);
+//              pvDepth = std::min(pvDepth, rootDepth);
           }
 
           // Start with a small aspiration window and, in the case of a fail
@@ -833,9 +833,10 @@ namespace {
         if (nullValue >= beta)
         {
             // Do not return unproven mate or TB scores
-            nullValue = std::min(nullValue, VALUE_TB_WIN_IN_MAX_PLY-1);
+            if (nullValue >= VALUE_TB_WIN_IN_MAX_PLY)
+                nullValue = beta;
 
-            if (thisThread->nmpMinPly || depth < 14)
+            if (thisThread->nmpMinPly || (abs(beta) < VALUE_KNOWN_WIN && depth < 14))
                 return nullValue;
 
             assert(!thisThread->nmpMinPly); // Recursive verification is not allowed
@@ -1305,7 +1306,7 @@ moves_loop: // When in check, search starts here
           // PV move or new best move?
           if (moveCount == 1 || value > alpha)
           {
-              rm.score =  rm.uciScore = value;
+              rm.score = rm.uciScore = value;
               rm.selDepth = thisThread->selDepth;
               rm.scoreLowerbound = rm.scoreUpperbound = false;
 
@@ -1596,23 +1597,23 @@ moves_loop: // When in check, search starts here
                     bestValue = std::max(bestValue, futilityBase);
                     continue;
                 }
-            }
+        }
 
-            // We prune after the second quiet check evasion move, where being 'in check' is
-            // implicitly checked through the counter, and being a 'quiet move' apart from
-            // being a tt move is assumed after an increment because captures are pushed ahead.
-            if (quietCheckEvasions > 1)
-                break;
+        // We prune after the second quiet check evasion move, where being 'in check' is
+        // implicitly checked through the counter, and being a 'quiet move' apart from
+        // being a tt move is assumed after an increment because captures are pushed ahead.
+        if (quietCheckEvasions > 1)
+            break;
 
-            // Continuation history based pruning (~3 Elo)
-            if (   !capture
-                && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < 0
-                && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
-                continue;
+        // Continuation history based pruning (~3 Elo)
+        if (   !capture
+            && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < 0
+            && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
+            continue;
 
-            // Do not search moves with bad enough SEE values (~5 Elo)
-            if (!pos.see_ge(move, Value(-95)))
-                continue;
+        // Do not search moves with bad enough SEE values (~5 Elo)
+        if (!pos.see_ge(move, Value(-95)))
+            continue;
         }
 
         // Speculative prefetch as early as possible
