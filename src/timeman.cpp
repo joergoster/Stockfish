@@ -39,31 +39,16 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   // if we have no time, no need to initialize TM, except for the start time,
   // which is used by movetime.
   startTime = limits.startTime;
-  if (limits.time[us] == 0)
+
+  if (limits.time[us] <= 0)
       return;
 
   TimePoint moveOverhead    = TimePoint(Options["Move Overhead"]);
   TimePoint slowMover       = TimePoint(Options["Slow Mover"]);
-  TimePoint npmsec          = TimePoint(Options["nodestime"]);
 
   // optScale is a percentage of available time to use for the current move.
   // maxScale is a multiplier applied to optimumTime.
   double optScale, maxScale;
-
-  // If we have to play in 'nodes as time' mode, then convert from time
-  // to nodes, and use resulting values in time management formulas.
-  // WARNING: to avoid time losses, the given npmsec (nodes per millisecond)
-  // must be much lower than the real engine speed.
-  if (npmsec)
-  {
-      if (!availableNodes) // Only once at game start
-          availableNodes = npmsec * limits.time[us]; // Time is in msec
-
-      // Convert from milliseconds to nodes
-      limits.time[us] = TimePoint(availableNodes);
-      limits.inc[us] *= npmsec;
-      limits.npmsec = npmsec;
-  }
 
   // Maximum move horizon of 50 moves
   int mtg = limits.movestogo ? std::min(limits.movestogo, 50) : 50;

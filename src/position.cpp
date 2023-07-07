@@ -80,32 +80,19 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
       && !pos.can_castle(ANY_CASTLING))
   {
       StateInfo st;
-      ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
-
       Position p;
       p.set(pos.fen(), pos.is_chess960(), &st, pos.this_thread());
+
       Tablebases::ProbeState s1, s2;
       Tablebases::WDLScore wdl = Tablebases::probe_wdl(p, &s1);
       int dtz = Tablebases::probe_dtz(p, &s2);
+
       os << "\nTablebases WDL: " << std::setw(4) << wdl << " (" << s1 << ")"
          << "\nTablebases DTZ: " << std::setw(4) << dtz << " (" << s2 << ")";
   }
 
   return os;
 }
-
-
-// Marcel van Kervinck's cuckoo algorithm for fast detection of "upcoming repetition"
-// situations. Description of the algorithm in the following paper:
-// http://web.archive.org/web/20201107002606/https://marcelk.net/2013-04-06/paper/upcoming-rep-v2.pdf
-
-// First and second hash functions for indexing the cuckoo tables
-inline int H1(Key h) { return h & 0x1fff; }
-inline int H2(Key h) { return (h >> 16) & 0x1fff; }
-
-// Cuckoo tables with Zobrist hashes of valid reversible moves, and the moves themselves
-Key cuckoo[8192];
-Move cuckooMove[8192];
 
 
 /// Position::init() initializes at startup the various arrays used to compute hash keys
@@ -126,30 +113,6 @@ void Position::init() {
 
   Zobrist::side = rng.rand<Key>();
   Zobrist::noPawns = rng.rand<Key>();
-
-  // Prepare the cuckoo tables
-  std::memset(cuckoo, 0, sizeof(cuckoo));
-  std::memset(cuckooMove, 0, sizeof(cuckooMove));
-  [[maybe_unused]] int count = 0;
-  for (Piece pc : Pieces)
-      for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
-          for (Square s2 = Square(s1 + 1); s2 <= SQ_H8; ++s2)
-              if ((type_of(pc) != PAWN) && (attacks_bb(type_of(pc), s1, 0) & s2))
-              {
-                  Move move = make_move(s1, s2);
-                  Key key = Zobrist::psq[pc][s1] ^ Zobrist::psq[pc][s2] ^ Zobrist::side;
-                  int i = H1(key);
-                  while (true)
-                  {
-                      std::swap(cuckoo[i], key);
-                      std::swap(cuckooMove[i], move);
-                      if (move == MOVE_NONE) // Arrived at empty slot?
-                          break;
-                      i = (i == H1(key)) ? H2(key) : H1(key); // Push victim to alternative slot
-                  }
-                  count++;
-             }
-  assert(count == 3668);
 }
 
 
@@ -700,12 +663,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   ++st->rule50;
   ++st->pliesFromNull;
 
-  // Used by NNUE
-  st->accumulator.computed[WHITE] = false;
-  st->accumulator.computed[BLACK] = false;
-  auto& dp = st->dirtyPiece;
-  dp.dirty_num = 1;
-
   Color us = sideToMove;
   Color them = ~us;
   Square from = from_sq(m);
@@ -753,14 +710,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       else
           st->nonPawnMaterial[them] -= PieceValue[MG][captured];
 
-      if (Eval::useNNUE)
-      {
-          dp.dirty_num = 2;  // 1 piece moved, 1 piece captured
-          dp.piece[1] = captured;
-          dp.from[1] = capsq;
-          dp.to[1] = SQ_NONE;
-      }
-
       // Update board and piece lists
       remove_piece(capsq);
 
@@ -793,16 +742,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Move the piece. The tricky Chess960 castling is handled earlier
   if (type_of(m) != CASTLING)
-  {
-      if (Eval::useNNUE)
-      {
-          dp.piece[0] = pc;
-          dp.from[0] = from;
-          dp.to[0] = to;
-      }
-
       move_piece(from, to);
-  }
 
   // If the moving piece is a pawn do some special extra work
   if (type_of(pc) == PAWN)
@@ -824,16 +764,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           remove_piece(to);
           put_piece(promotion, to);
-
-          if (Eval::useNNUE)
-          {
-              // Promoting pawn to SQ_NONE, promoted piece from SQ_NONE
-              dp.to[0] = SQ_NONE;
-              dp.piece[dp.dirty_num] = promotion;
-              dp.from[dp.dirty_num] = SQ_NONE;
-              dp.to[dp.dirty_num] = to;
-              dp.dirty_num++;
-          }
 
           // Update hash keys
           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
@@ -871,6 +801,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // if the position was not repeated.
   st->repetition = 0;
   int end = std::min(st->rule50, st->pliesFromNull);
+
   if (end >= 4)
   {
       StateInfo* stp = st->previous->previous;
@@ -963,18 +894,6 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
   rto = relative_square(us, kingSide ? SQ_F1 : SQ_D1);
   to = relative_square(us, kingSide ? SQ_G1 : SQ_C1);
 
-  if (Do && Eval::useNNUE)
-  {
-      auto& dp = st->dirtyPiece;
-      dp.piece[0] = make_piece(us, KING);
-      dp.from[0] = from;
-      dp.to[0] = to;
-      dp.piece[1] = make_piece(us, ROOK);
-      dp.from[1] = rfrom;
-      dp.to[1] = rto;
-      dp.dirty_num = 2;
-  }
-
   // Remove both pieces first since squares could overlap in Chess960
   remove_piece(Do ? from : to);
   remove_piece(Do ? rfrom : rto);
@@ -992,15 +911,10 @@ void Position::do_null_move(StateInfo& newSt) {
   assert(!checkers());
   assert(&newSt != st);
 
-  std::memcpy(&newSt, st, offsetof(StateInfo, accumulator));
+  std::memcpy(&newSt, st, sizeof(StateInfo));
 
   newSt.previous = st;
   st = &newSt;
-
-  st->dirtyPiece.dirty_num = 0;
-  st->dirtyPiece.piece[0] = NO_PIECE; // Avoid checks in UpdateAccumulator()
-  st->accumulator.computed[WHITE] = false;
-  st->accumulator.computed[BLACK] = false;
 
   if (st->epSquare != SQ_NONE)
   {
@@ -1013,12 +927,10 @@ void Position::do_null_move(StateInfo& newSt) {
   prefetch(TT.first_entry(key()));
 
   st->pliesFromNull = 0;
-
+  st->repetition = 0;
   sideToMove = ~sideToMove;
 
   set_check_info();
-
-  st->repetition = 0;
 
   assert(pos_is_ok());
 }
@@ -1189,6 +1101,7 @@ bool Position::has_repeated() const {
 
     StateInfo* stc = st;
     int end = std::min(st->rule50, st->pliesFromNull);
+
     while (end-- >= 4)
     {
         if (stc->repetition)
@@ -1197,55 +1110,6 @@ bool Position::has_repeated() const {
         stc = stc->previous;
     }
     return false;
-}
-
-
-/// Position::has_game_cycle() tests if the position has a move which draws by repetition,
-/// or an earlier position has a move that directly reaches the current position.
-
-bool Position::has_game_cycle(int ply) const {
-
-  int j;
-
-  int end = std::min(st->rule50, st->pliesFromNull);
-
-  if (end < 3)
-    return false;
-
-  Key originalKey = st->key;
-  StateInfo* stp = st->previous;
-
-  for (int i = 3; i <= end; i += 2)
-  {
-      stp = stp->previous->previous;
-
-      Key moveKey = originalKey ^ stp->key;
-      if (   (j = H1(moveKey), cuckoo[j] == moveKey)
-          || (j = H2(moveKey), cuckoo[j] == moveKey))
-      {
-          Move move = cuckooMove[j];
-          Square s1 = from_sq(move);
-          Square s2 = to_sq(move);
-
-          if (!((between_bb(s1, s2) ^ s2) & pieces()))
-          {
-              if (ply > i)
-                  return true;
-
-              // For nodes before or at the root, check that the move is a
-              // repetition rather than a move to the current position.
-              // In the cuckoo table, both moves Rc1c5 and Rc5c1 are stored in
-              // the same location, so we have to select which square to check.
-              if (color_of(piece_on(empty(s1) ? s2 : s1)) != side_to_move())
-                  continue;
-
-              // For repetitions before or at the root, require one more
-              if (stp->repetition)
-                  return true;
-          }
-      }
-  }
-  return false;
 }
 
 

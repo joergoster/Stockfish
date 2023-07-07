@@ -35,124 +35,18 @@
 #include "thread.h"
 #include "timeman.h"
 #include "uci.h"
-#include "incbin/incbin.h"
-#include "nnue/evaluate_nnue.h"
-
-// Macro to embed the default efficiently updatable neural network (NNUE) file
-// data in the engine binary (using incbin.h, by Dale Weiler).
-// This macro invocation will declare the following three variables
-//     const unsigned char        gEmbeddedNNUEData[];  // a pointer to the embedded data
-//     const unsigned char *const gEmbeddedNNUEEnd;     // a marker to the end
-//     const unsigned int         gEmbeddedNNUESize;    // the size of the embedded file
-// Note that this does not work in Microsoft Visual Studio.
-#if !defined(_MSC_VER) && !defined(NNUE_EMBEDDING_OFF)
-  INCBIN(EmbeddedNNUE, EvalFileDefaultName);
-#else
-  const unsigned char        gEmbeddedNNUEData[1] = {0x0};
-  const unsigned char *const gEmbeddedNNUEEnd = &gEmbeddedNNUEData[1];
-  const unsigned int         gEmbeddedNNUESize = 1;
-#endif
 
 
 using namespace std;
 
 namespace Stockfish {
 
-namespace Eval {
-
-  bool useNNUE;
-  string currentEvalFileName = "None";
-
-  /// NNUE::init() tries to load a NNUE network at startup time, or when the engine
-  /// receives a UCI command "setoption name EvalFile value nn-[a-z0-9]{12}.nnue"
-  /// The name of the NNUE network is always retrieved from the EvalFile option.
-  /// We search the given network in three locations: internally (the default
-  /// network may be embedded in the binary), in the active working directory and
-  /// in the engine directory. Distro packagers may define the DEFAULT_NNUE_DIRECTORY
-  /// variable to have the engine search in a special directory in their distro.
-
-  void NNUE::init() {
-
-    useNNUE = Options["Use NNUE"];
-    if (!useNNUE)
-        return;
-
-    string eval_file = string(Options["EvalFile"]);
-    if (eval_file.empty())
-        eval_file = EvalFileDefaultName;
-
-    #if defined(DEFAULT_NNUE_DIRECTORY)
-    vector<string> dirs = { "<internal>" , "" , CommandLine::binaryDirectory , stringify(DEFAULT_NNUE_DIRECTORY) };
-    #else
-    vector<string> dirs = { "<internal>" , "" , CommandLine::binaryDirectory };
-    #endif
-
-    for (const string& directory : dirs)
-        if (currentEvalFileName != eval_file)
-        {
-            if (directory != "<internal>")
-            {
-                ifstream stream(directory + eval_file, ios::binary);
-                if (NNUE::load_eval(eval_file, stream))
-                    currentEvalFileName = eval_file;
-            }
-
-            if (directory == "<internal>" && eval_file == EvalFileDefaultName)
-            {
-                // C++ way to prepare a buffer for a memory stream
-                class MemoryBuffer : public basic_streambuf<char> {
-                    public: MemoryBuffer(char* p, size_t n) { setg(p, p, p + n); setp(p, p + n); }
-                };
-
-                MemoryBuffer buffer(const_cast<char*>(reinterpret_cast<const char*>(gEmbeddedNNUEData)),
-                                    size_t(gEmbeddedNNUESize));
-                (void) gEmbeddedNNUEEnd; // Silence warning on unused variable
-
-                istream stream(&buffer);
-                if (NNUE::load_eval(eval_file, stream))
-                    currentEvalFileName = eval_file;
-            }
-        }
-  }
-
-  /// NNUE::verify() verifies that the last net used was loaded successfully
-  void NNUE::verify() {
-
-    string eval_file = string(Options["EvalFile"]);
-    if (eval_file.empty())
-        eval_file = EvalFileDefaultName;
-
-    if (useNNUE && currentEvalFileName != eval_file)
-    {
-
-        string msg1 = "If the UCI option \"Use NNUE\" is set to true, network evaluation parameters compatible with the engine must be available.";
-        string msg2 = "The option is set to true, but the network file " + eval_file + " was not loaded successfully.";
-        string msg3 = "The UCI option EvalFile might need to specify the full path, including the directory name, to the network file.";
-        string msg4 = "The default net can be downloaded from: https://tests.stockfishchess.org/api/nn/" + std::string(EvalFileDefaultName);
-        string msg5 = "The engine will be terminated now.";
-
-        sync_cout << "info string ERROR: " << msg1 << sync_endl;
-        sync_cout << "info string ERROR: " << msg2 << sync_endl;
-        sync_cout << "info string ERROR: " << msg3 << sync_endl;
-        sync_cout << "info string ERROR: " << msg4 << sync_endl;
-        sync_cout << "info string ERROR: " << msg5 << sync_endl;
-
-        exit(EXIT_FAILURE);
-    }
-
-    if (useNNUE)
-        sync_cout << "info string NNUE evaluation using " << eval_file << " enabled" << sync_endl;
-    else
-        sync_cout << "info string classical evaluation enabled" << sync_endl;
-  }
-}
-
 namespace Trace {
 
   enum Tracing { NO_TRACE, TRACE };
 
   enum Term { // The first 8 entries are reserved for PieceType
-    MATERIAL = 8, IMBALANCE, MOBILITY, THREAT, PASSED, SPACE, WINNABLE, TOTAL, TERM_NB
+    MATERIAL = 8, IMBALANCE, MOBILITY, THREAT, PASSED, TOTAL, TERM_NB
   };
 
   Score scores[TERM_NB][COLOR_NB];
@@ -176,7 +70,7 @@ namespace Trace {
 
   static std::ostream& operator<<(std::ostream& os, Term t) {
 
-    if (t == MATERIAL || t == IMBALANCE || t == WINNABLE || t == TOTAL)
+    if (t == MATERIAL || t == IMBALANCE || t == TOTAL)
         os << " ----  ----"    << " | " << " ----  ----";
     else
         os << scores[t][WHITE] << " | " << scores[t][BLACK];
@@ -189,11 +83,6 @@ namespace Trace {
 using namespace Trace;
 
 namespace {
-
-  // Threshold for lazy and space evaluation
-  constexpr Value LazyThreshold1    =  Value(3622);
-  constexpr Value LazyThreshold2    =  Value(1962);
-  constexpr Value SpaceThreshold    =  Value(11551);
 
   // KingAttackWeights[PieceType] contains king attack weights by piece type
   constexpr int KingAttackWeights[PIECE_TYPE_NB] = { 0, 0, 76, 46, 45, 14 };
@@ -280,7 +169,6 @@ namespace {
   constexpr Score WeakQueenProtection = S( 14,  0);
   constexpr Score WeakQueen           = S( 57, 19);
 
-
 #undef S
 
   // Evaluation class computes and stores attacks tables and other working data
@@ -299,8 +187,6 @@ namespace {
     template<Color Us> Score king() const;
     template<Color Us> Score threats() const;
     template<Color Us> Score passed() const;
-    template<Color Us> Score space() const;
-    Value winnable(Score score) const;
 
     const Position& pos;
     Material::Entry* me;
@@ -520,7 +406,7 @@ namespace {
         }
     }
     if constexpr (T)
-        Trace::add(Pt, Us, score);
+        Trace::add(Pt, Us, score / 32);
 
     return score;
   }
@@ -535,7 +421,7 @@ namespace {
     constexpr Bitboard Camp = (Us == WHITE ? AllSquares ^ Rank6BB ^ Rank7BB ^ Rank8BB
                                            : AllSquares ^ Rank1BB ^ Rank2BB ^ Rank3BB);
 
-    Bitboard weak, b1, b2, b3, safe, unsafeChecks = 0;
+    Bitboard kingSquares, weak, b1, b2, b3, safe, unsafeChecks = 0;
     Bitboard rookChecks, queenChecks, bishopChecks, knightChecks;
     int kingDanger = 0;
     const Square ksq = pos.square<KING>(Us);
@@ -547,6 +433,10 @@ namespace {
     weak =  attackedBy[Them][ALL_PIECES]
           & ~attackedBy2[Us]
           & (~attackedBy[Us][ALL_PIECES] | attackedBy[Us][KING] | attackedBy[Us][QUEEN]);
+
+    kingSquares =   attackedBy[Us][KING]
+                 & ~attackedBy[Them][ALL_PIECES]
+                 & ~pos.pieces(Us);
 
     // Analyse the safe enemy's checks which are possible on next move
     safe  = ~pos.pieces(Them);
@@ -602,8 +492,9 @@ namespace {
                  +  69 * kingAttacksCount[Them]                               // (~0.5 Elo)
                  +   3 * kingFlankAttack * kingFlankAttack / 8                // (~0.5 Elo)
                  +       mg_value(mobility[Them] - mobility[Us])              // (~0.5 Elo)
-                 - 873 * !pos.count<QUEEN>(Them)                              // (~24 Elo)
+                 - 473 * !pos.count<QUEEN>(Them)                              // (~24 Elo)
                  - 100 * bool(attackedBy[Us][KNIGHT] & attackedBy[Us][KING])  // (~5 Elo)
+                 - 100 * popcount(kingSquares)
                  -   6 * mg_value(score) / 8                                  // (~8 Elo)
                  -   4 * kingFlankDefense                                     // (~5 Elo)
                  +  37;                                                       // (~0.5 Elo)
@@ -721,7 +612,7 @@ namespace {
     }
 
     if constexpr (T)
-        Trace::add(THREAT, Us, score);
+        Trace::add(THREAT, Us, score / 4);
 
     return score;
   }
@@ -814,150 +705,10 @@ namespace {
     }
 
     if constexpr (T)
-        Trace::add(PASSED, Us, score);
+        Trace::add(PASSED, Us, score / 2);
 
     return score;
   }
-
-
-  // Evaluation::space() computes a space evaluation for a given side, aiming to improve game
-  // play in the opening. It is based on the number of safe squares on the four central files
-  // on ranks 2 to 4. Completely safe squares behind a friendly pawn are counted twice.
-  // Finally, the space bonus is multiplied by a weight which decreases according to occupancy.
-
-  template<Tracing T> template<Color Us>
-  Score Evaluation<T>::space() const {
-
-    // Early exit if, for example, both queens or 6 minor pieces have been exchanged
-    if (pos.non_pawn_material() < SpaceThreshold)
-        return SCORE_ZERO;
-
-    constexpr Color Them     = ~Us;
-    constexpr Direction Down = -pawn_push(Us);
-    constexpr Bitboard SpaceMask =
-      Us == WHITE ? CenterFiles & (Rank2BB | Rank3BB | Rank4BB)
-                  : CenterFiles & (Rank7BB | Rank6BB | Rank5BB);
-
-    // Find the available squares for our pieces inside the area defined by SpaceMask
-    Bitboard safe =   SpaceMask
-                   & ~pos.pieces(Us, PAWN)
-                   & ~attackedBy[Them][PAWN];
-
-    // Find all squares which are at most three squares behind some friendly pawn
-    Bitboard behind = pos.pieces(Us, PAWN);
-    behind |= shift<Down>(behind);
-    behind |= shift<Down+Down>(behind);
-
-    // Compute space score based on the number of safe squares and number of our pieces
-    // increased with number of total blocked pawns in position.
-    int bonus = popcount(safe) + popcount(behind & safe & ~attackedBy[Them][ALL_PIECES]);
-    int weight = pos.count<ALL_PIECES>(Us) - 3 + std::min(pe->blocked_count(), 9);
-    Score score = make_score(bonus * weight * weight / 16, 0);
-
-    if constexpr (T)
-        Trace::add(SPACE, Us, score);
-
-    return score;
-  }
-
-
-  // Evaluation::winnable() adjusts the midgame and endgame score components, based on
-  // the known attacking/defending status of the players. The final value is derived
-  // by interpolation from the midgame and endgame values.
-
-  template<Tracing T>
-  Value Evaluation<T>::winnable(Score score) const {
-
-    int outflanking =  distance<File>(pos.square<KING>(WHITE), pos.square<KING>(BLACK))
-                    + int(rank_of(pos.square<KING>(WHITE)) - rank_of(pos.square<KING>(BLACK)));
-
-    bool pawnsOnBothFlanks =   (pos.pieces(PAWN) & QueenSide)
-                            && (pos.pieces(PAWN) & KingSide);
-
-    bool almostUnwinnable =   outflanking < 0
-                           && !pawnsOnBothFlanks;
-
-    bool infiltration =   rank_of(pos.square<KING>(WHITE)) > RANK_4
-                       || rank_of(pos.square<KING>(BLACK)) < RANK_5;
-
-    // Compute the initiative bonus for the attacking side
-    int complexity =   9 * pe->passed_count()
-                    + 12 * pos.count<PAWN>()
-                    +  9 * outflanking
-                    + 21 * pawnsOnBothFlanks
-                    + 24 * infiltration
-                    + 51 * !pos.non_pawn_material()
-                    - 43 * almostUnwinnable
-                    -110 ;
-
-    Value mg = mg_value(score);
-    Value eg = eg_value(score);
-
-    // Now apply the bonus: note that we find the attacking side by extracting the
-    // sign of the midgame or endgame values, and that we carefully cap the bonus
-    // so that the midgame and endgame scores do not change sign after the bonus.
-    int u = ((mg > 0) - (mg < 0)) * std::clamp(complexity + 50, -abs(mg), 0);
-    int v = ((eg > 0) - (eg < 0)) * std::max(complexity, -abs(eg));
-
-    mg += u;
-    eg += v;
-
-    // Compute the scale factor for the winning side
-    Color strongSide = eg > VALUE_DRAW ? WHITE : BLACK;
-    int sf = me->scale_factor(pos, strongSide);
-
-    // If scale factor is not already specific, scale up/down via general heuristics
-    if (sf == SCALE_FACTOR_NORMAL)
-    {
-        if (pos.opposite_bishops())
-        {
-            // For pure opposite colored bishops endgames use scale factor
-            // based on the number of passed pawns of the strong side.
-            if (   pos.non_pawn_material(WHITE) == BishopValueMg
-                && pos.non_pawn_material(BLACK) == BishopValueMg)
-                sf = 18 + 4 * popcount(pe->passed_pawns(strongSide));
-            // For every other opposite colored bishops endgames use scale factor
-            // based on the number of all pieces of the strong side.
-            else
-                sf = 22 + 3 * pos.count<ALL_PIECES>(strongSide);
-        }
-        // For rook endgames with strong side not having overwhelming pawn number advantage
-        // and its pawns being on one flank and weak side protecting its pieces with a king
-        // use lower scale factor.
-        else if (  pos.non_pawn_material(WHITE) == RookValueMg
-                && pos.non_pawn_material(BLACK) == RookValueMg
-                && pos.count<PAWN>(strongSide) - pos.count<PAWN>(~strongSide) <= 1
-                && bool(KingSide & pos.pieces(strongSide, PAWN)) != bool(QueenSide & pos.pieces(strongSide, PAWN))
-                && (attacks_bb<KING>(pos.square<KING>(~strongSide)) & pos.pieces(~strongSide, PAWN)))
-            sf = 36;
-        // For queen vs no queen endgames use scale factor
-        // based on number of minors of side that doesn't have queen.
-        else if (pos.count<QUEEN>() == 1)
-            sf = 37 + 3 * (pos.count<QUEEN>(WHITE) == 1 ? pos.count<BISHOP>(BLACK) + pos.count<KNIGHT>(BLACK)
-                                                        : pos.count<BISHOP>(WHITE) + pos.count<KNIGHT>(WHITE));
-        // In every other case use scale factor based on
-        // the number of pawns of the strong side reduced if pawns are on a single flank.
-        else
-            sf = std::min(sf, 36 + 7 * pos.count<PAWN>(strongSide)) - 4 * !pawnsOnBothFlanks;
-
-        // Reduce scale factor in case of pawns being on a single flank
-        sf -= 4 * !pawnsOnBothFlanks;
-    }
-
-    // Interpolate between the middlegame and (scaled by 'sf') endgame score
-    v =  mg * int(me->game_phase())
-       + eg * int(PHASE_MIDGAME - me->game_phase()) * ScaleFactor(sf) / SCALE_FACTOR_NORMAL;
-    v /= PHASE_MIDGAME;
-
-    if constexpr (T)
-    {
-        Trace::add(WINNABLE, make_score(u, eg * ScaleFactor(sf) / SCALE_FACTOR_NORMAL - eg_value(score)));
-        Trace::add(TOTAL, make_score(mg, eg * ScaleFactor(sf) / SCALE_FACTOR_NORMAL));
-    }
-
-    return Value(v);
-  }
-
 
   // Evaluation::value() is the main function of the class. It computes the various
   // parts of the evaluation and returns the value of the position from the point
@@ -985,59 +736,55 @@ namespace {
     pe = Pawns::probe(pos);
     score += pe->pawn_score(WHITE) - pe->pawn_score(BLACK);
 
-    // Early exit if score is high
-    auto lazy_skip = [&](Value lazyThreshold) {
-        return abs(mg_value(score) + eg_value(score)) >   lazyThreshold
-                                                        + std::abs(pos.this_thread()->bestValue) * 5 / 4
-                                                        + pos.non_pawn_material() / 32;
-    };
-
-    if (lazy_skip(LazyThreshold1))
-        goto make_v;
-
     // Main evaluation begins here
     initialize<WHITE>();
     initialize<BLACK>();
 
     // Pieces evaluated first (also populates attackedBy, attackedBy2).
-    // Note that the order of evaluation of the terms is left unspecified.
-    score +=  pieces<WHITE, KNIGHT>() - pieces<BLACK, KNIGHT>()
-            + pieces<WHITE, BISHOP>() - pieces<BLACK, BISHOP>()
-            + pieces<WHITE, ROOK  >() - pieces<BLACK, ROOK  >()
-            + pieces<WHITE, QUEEN >() - pieces<BLACK, QUEEN >();
+    score += pieces<WHITE, KNIGHT>() - pieces<BLACK, KNIGHT>();
+    score += pieces<WHITE, BISHOP>() - pieces<BLACK, BISHOP>();
+    score += pieces<WHITE, ROOK  >() - pieces<BLACK, ROOK  >();
+    score += pieces<WHITE, QUEEN >() - pieces<BLACK, QUEEN >();
 
     score += mobility[WHITE] - mobility[BLACK];
 
+    score = score / 32;
+
     // More complex interactions that require fully populated attack bitboards
-    score +=  king<   WHITE>() - king<   BLACK>()
-            + passed< WHITE>() - passed< BLACK>();
-
-    if (lazy_skip(LazyThreshold2))
-        goto make_v;
-
-    score +=  threats<WHITE>() - threats<BLACK>()
-            + space<  WHITE>() - space<  BLACK>();
-
-make_v:
-    // Derive single value from mg and eg parts of score
-    Value v = winnable(score);
+    score += king<WHITE>() - king<BLACK>();
+    score += (threats<WHITE>() - threats<BLACK>()) / 4;
+    score += (passed<WHITE>() - passed<BLACK>()) / 2;
 
     // In case of tracing add all remaining individual evaluation terms
     if constexpr (T)
     {
-        Trace::add(MATERIAL, pos.psq_score());
-        Trace::add(IMBALANCE, me->imbalance());
-        Trace::add(PAWN, pe->pawn_score(WHITE), pe->pawn_score(BLACK));
-        Trace::add(MOBILITY, mobility[WHITE], mobility[BLACK]);
+        Trace::add(MATERIAL,  pos.psq_score() / 32);
+        Trace::add(IMBALANCE, me->imbalance() / 32);
+        Trace::add(PAWN,      pe->pawn_score(WHITE) / 32, pe->pawn_score(BLACK) / 32);
+        Trace::add(MOBILITY,  mobility[WHITE] / 32, mobility[BLACK] / 32);
     }
+
+    // Derive single value from mg and eg parts of score
+    Value mg = mg_value(score);
+    Value eg = eg_value(score);
+
+    if constexpr (T)
+        Trace::add(TOTAL, make_score(mg, eg));
+
+    // Interpolate between the middlegame and endgame score
+    Value v =  mg * int(me->game_phase())
+             + eg * int(PHASE_MIDGAME - me->game_phase());
+
+    v /= PHASE_MIDGAME;
 
     // Evaluation grain
     v = (v / 16) * 16;
 
-    // Side to move point of view
-    v = (pos.side_to_move() == WHITE ? v : -v);
+    // Make sure evaluation does not hit the tablebase range
+    v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
-    return v;
+    // Side to move point of view
+    return (pos.side_to_move() == WHITE ? v : -v);
   }
 
 } // namespace Eval
@@ -1048,41 +795,9 @@ make_v:
 
 Value Eval::evaluate(const Position& pos) {
 
-  assert(!pos.checkers());
-
-  Value v;
-  Value psq = pos.psq_eg_stm();
-
-  // We use the much less accurate but faster Classical eval when the NNUE
-  // option is set to false. Otherwise we use the NNUE eval unless the
-  // PSQ advantage is decisive. (~4 Elo at STC, 1 Elo at LTC)
-  bool useClassical = !useNNUE || abs(psq) > 2048;
-
-  if (useClassical)
-      v = Evaluation<NO_TRACE>(pos).value();
-  else
-  {
-      int nnueComplexity;
-      int npm = pos.non_pawn_material() / 64;
-
-      Color stm = pos.side_to_move();
-      Value optimism = pos.this_thread()->optimism[stm];
-
-      Value nnue = NNUE::evaluate(pos, true, &nnueComplexity);
-
-      // Blend optimism with nnue complexity and (semi)classical complexity
-      optimism += optimism * (nnueComplexity + abs(psq - nnue)) / 512;
-      v = (nnue * (945 + npm) + optimism * (150 + npm)) / 1024;
-  }
-
-  // Damp down the evaluation linearly when shuffling
-  v = v * (200 - pos.rule50_count()) / 214;
-
-  // Guarantee evaluation does not hit the tablebase range
-  v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
-
-  return v;
+  return Evaluation<NO_TRACE>(pos).value();
 }
+
 
 /// trace() is like evaluate(), but instead of returning a value, it returns
 /// a string (suitable for outputting to stdout) that contains the detailed
@@ -1097,8 +812,6 @@ std::string Eval::trace(Position& pos) {
   std::stringstream ss;
   ss << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2);
 
-  Value v;
-
   std::memset(scores, 0, sizeof(scores));
 
   // Reset any global variable used in eval
@@ -1106,7 +819,7 @@ std::string Eval::trace(Position& pos) {
   pos.this_thread()->optimism[WHITE] = VALUE_ZERO;
   pos.this_thread()->optimism[BLACK] = VALUE_ZERO;
 
-  v = Evaluation<TRACE>(pos).value();
+  Value v = Evaluation<TRACE>(pos).value();
 
   ss << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
      << " Contributing terms for the classical eval:\n"
@@ -1125,32 +838,14 @@ std::string Eval::trace(Position& pos) {
      << "|King safety | " << Term(KING)
      << "|    Threats | " << Term(THREAT)
      << "|     Passed | " << Term(PASSED)
-     << "|      Space | " << Term(SPACE)
-     << "|   Winnable | " << Term(WINNABLE)
      << "+------------+-------------+-------------+-------------+\n"
      << "|      Total | " << Term(TOTAL)
      << "+------------+-------------+-------------+-------------+\n";
-
-  if (Eval::useNNUE)
-      ss << '\n' << NNUE::trace(pos) << '\n';
 
   ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
 
   v = pos.side_to_move() == WHITE ? v : -v;
   ss << "\nClassical evaluation   " << to_cp(v) << " (white side)\n";
-  if (Eval::useNNUE)
-  {
-      v = NNUE::evaluate(pos, false);
-      v = pos.side_to_move() == WHITE ? v : -v;
-      ss << "NNUE evaluation        " << to_cp(v) << " (white side)\n";
-  }
-
-  v = evaluate(pos);
-  v = pos.side_to_move() == WHITE ? v : -v;
-  ss << "Final evaluation       " << to_cp(v) << " (white side)";
-  if (Eval::useNNUE)
-     ss << " [with scaled NNUE, hybrid, ...]";
-  ss << "\n";
 
   return ss.str();
 }

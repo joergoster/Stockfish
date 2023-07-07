@@ -121,6 +121,7 @@ void MovePicker::score() {
   }
 
   for (auto& m : *this)
+  {
       if constexpr (Type == CAPTURES)
           m.value =  (7 * int(PieceValue[MG][pos.piece_on(to_sq(m))])
                    +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16;
@@ -148,6 +149,10 @@ void MovePicker::score() {
               m.value =  (*mainHistory)[pos.side_to_move()][from_to(m)]
                        + (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)];
       }
+
+      if (pos.gives_check(m))
+          m.value += 20000 - 400 * distance(pos.square<KING>(~pos.side_to_move()), to_sq(m));
+  }
 }
 
 /// MovePicker::select() returns the next move satisfying a predicate function.

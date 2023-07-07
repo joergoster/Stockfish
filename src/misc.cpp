@@ -73,7 +73,7 @@ namespace Stockfish {
 namespace {
 
 /// Version number or dev.
-constexpr string_view version = "dev";
+constexpr string_view version = "2023";
 
 /// Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 /// cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -154,7 +154,7 @@ public:
 
 string engine_info(bool to_uci) {
   stringstream ss;
-  ss << "Stockfish " << version << setfill('0');
+  ss << "The Huntsman " << version << setfill('0');
 
   if constexpr (version == "dev")
   {
@@ -180,7 +180,7 @@ string engine_info(bool to_uci) {
   }
 
   ss << (to_uci  ? "\nid author ": " by ")
-     << "the Stockfish developers (see AUTHORS file)";
+     << "J. Oster and the Stockfish developers (see AUTHORS file)";
 
   return ss.str();
 }
