@@ -120,38 +120,106 @@ void MovePicker::score() {
                        | (pos.pieces(us, KNIGHT, BISHOP) & threatenedByPawn);
   }
 
+  const Square theirKing = pos.square<KING>(~pos.side_to_move());
+  const Bitboard kingRing = pos.attacks_from<KING>(theirKing);
+
   for (auto& m : *this)
   {
+      auto to = to_sq(m);
+      auto movedPiece = pos.moved_piece(m);
+
       if constexpr (Type == CAPTURES)
-          m.value =  (7 * int(PieceValue[MG][pos.piece_on(to_sq(m))])
-                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16;
+          m.value =  (7 * int(PieceValue[MG][pos.piece_on(to)])
+                   +     (*captureHistory)[movedPiece][to][type_of(pos.piece_on(to))]) / 16;
 
       else if constexpr (Type == QUIETS)
           m.value =  2 * (*mainHistory)[pos.side_to_move()][from_to(m)]
-                   + 2 * (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
-                   +     (*continuationHistory[1])[pos.moved_piece(m)][to_sq(m)]
-                   +     (*continuationHistory[3])[pos.moved_piece(m)][to_sq(m)]
-                   +     (*continuationHistory[5])[pos.moved_piece(m)][to_sq(m)]
+                   + 2 * (*continuationHistory[0])[movedPiece][to]
+                   +     (*continuationHistory[1])[movedPiece][to]
+                   +     (*continuationHistory[3])[movedPiece][to]
+                   +     (*continuationHistory[5])[movedPiece][to]
                    +     (threatenedPieces & from_sq(m) ?
-                           (type_of(pos.moved_piece(m)) == QUEEN && !(to_sq(m) & threatenedByRook)  ? 50000
-                          : type_of(pos.moved_piece(m)) == ROOK  && !(to_sq(m) & threatenedByMinor) ? 25000
-                          :                                         !(to_sq(m) & threatenedByPawn)  ? 15000
-                          :                                                                           0)
-                          :                                                                           0)
-                   +     bool(pos.check_squares(type_of(pos.moved_piece(m))) & to_sq(m)) * 16384;
+                           (type_of(movedPiece) == QUEEN && !(threatenedByRook & to)  ? 50000
+                          : type_of(movedPiece) == ROOK  && !(threatenedByMinor & to) ? 25000
+                          :                                 !(threatenedByPawn & to)  ? 15000
+                          : 0)
+                          : 0);
+
       else // Type == EVASIONS
       {
           if (pos.capture_stage(m))
-              m.value =  PieceValue[MG][pos.piece_on(to_sq(m))]
-                       - Value(type_of(pos.moved_piece(m)))
+              m.value =  PieceValue[MG][pos.piece_on(to)]
+                       - Value(type_of(movedPiece))
                        + (1 << 28);
           else
               m.value =  (*mainHistory)[pos.side_to_move()][from_to(m)]
-                       + (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)];
+                       + (*continuationHistory[0])[movedPiece][to];
       }
 
-      if (pos.gives_check(m))
-          m.value += 20000 - 400 * distance(pos.square<KING>(~pos.side_to_move()), to_sq(m));
+      if constexpr (Type == CAPTURES || Type == QUIETS)
+      {
+          if (pos.gives_check(m))
+          {
+              m.value += 20000 - 400 * distance(theirKing, to);
+
+              // Bonus for a knight check
+              if (type_of(movedPiece) == KNIGHT)
+                  m.value += 3000;
+
+              // Bonus for queen/rook contact checks
+              else if (  (type_of(movedPiece) == QUEEN
+                       || type_of(movedPiece) == ROOK)
+                       && distance(theirKing, to) == 1)
+                  m.value += 4000;
+          }
+
+
+          // Bonus for pawns
+          if (type_of(movedPiece) == PAWN)
+          {
+              m.value +=   640 * edge_distance(file_of(to))
+                        + 1280 * relative_rank(pos.side_to_move(), to);
+
+              // Extra bonus for double push
+              m.value += 4000 * (distance<Rank>(to, from_sq(m)) == 2);
+          }
+
+          // Bonus for a knight eventually able to give check on the next move
+          if (type_of(movedPiece) == KNIGHT)
+          {
+              if (pos.attacks_from<KNIGHT>(to) & pos.check_squares(KNIGHT))
+                  m.value += 6000;
+
+              m.value += 2560 * popcount(PseudoAttacks[KNIGHT][to] & kingRing);
+          }
+
+          // Bonus for a queen eventually able to give check on the next move
+          else if (type_of(movedPiece) == QUEEN)
+          {
+              if (pos.attacks_from<QUEEN>(to) & pos.check_squares(QUEEN))
+                  m.value += 5000;
+
+              m.value += 1280 * popcount(PseudoAttacks[QUEEN][to] & kingRing);
+          }
+
+          // Bonus for a rook eventually able to give check on the next move
+          else if (type_of(movedPiece) == ROOK)
+          {
+              if (pos.attacks_from<ROOK>(to) & pos.check_squares(ROOK))
+                  m.value += 4000;
+
+              m.value += 960 * popcount(PseudoAttacks[ROOK][to] & kingRing);
+          }
+
+          // Bonus for a bishop eventually able to give check on the next move
+          else if (type_of(movedPiece) == BISHOP)
+          {
+              if (pos.attacks_from<BISHOP>(to) & pos.check_squares(BISHOP))
+                  m.value += 3000;
+
+              m.value += 640 * popcount(PseudoAttacks[BISHOP][to] & kingRing);
+          }
+      }
   }
 }
 
