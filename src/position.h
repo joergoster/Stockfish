@@ -376,7 +376,7 @@ inline int Position::game_ply() const {
 }
 
 inline int Position::rule50_count() const {
-  return 0;
+  return st->rule50;
 }
 
 inline bool Position::opposite_bishops() const {

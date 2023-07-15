@@ -81,7 +81,7 @@ namespace {
 
   // History and stats update bonus, based on depth
   int stat_bonus(Depth d) {
-    return std::min(336 * d - 547, 1561);
+    return std::min(336 * d - 547, 1561) / 4;
   }
 
   // Add a small random component to draw evaluations to avoid 3-fold blindness
@@ -506,18 +506,23 @@ namespace {
     if (!rootNode)
     {
         // Step 2. Check for aborted search and immediate draw
+        if (   TB::UseRule50
+            && pos.rule50_count() > 99 && (!ss->inCheck || MoveList<LEGAL>(pos).size()))
+            return value_draw(thisThread);
+
+        if (pos.is_draw(ss->ply))
+            return value_draw(thisThread);
+
         if (   Threads.stop.load(std::memory_order_relaxed)
-            || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
             return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
-                                                        : value_draw(pos.this_thread());
+                                                        : VALUE_ZERO;
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply+1), but if alpha is already bigger because
         // a shorter mate was found upward in the tree then there is no need to search
         // because we will never beat the current alpha.
-        beta = std::min(mate_in(ss->ply+1), beta);
-        if (alpha >= beta)
+        if (alpha >= mate_in(ss->ply+1))
             return alpha;
     }
     else
@@ -1379,15 +1384,20 @@ moves_loop: // When in check, search starts here
     moveCount = 0;
 
     // Step 2. Check for an immediate draw or maximum ply reached
-    if (   pos.is_draw(ss->ply)
-        || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
-                                                    : VALUE_DRAW;
+    if (    TB::UseRule50
+        &&  pos.rule50_count() > 99
+        && (!ss->inCheck || MoveList<LEGAL>(pos).size()))
+        return value_draw(thisThread);
+
+    if (pos.is_draw(ss->ply))
+        return value_draw(thisThread);
+
+    if (ss->ply >= MAX_PLY)
+        return !ss->inCheck ? evaluate(pos) : VALUE_ZERO;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    beta = std::min(mate_in(ss->ply+1), beta);
-    if (alpha >= beta)
+    if (alpha >= mate_in(ss->ply+1))
         return alpha;
 
     // Decide whether or not to include checks: this fixes also the type of
@@ -1405,8 +1415,8 @@ moves_loop: // When in check, search starts here
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
-        && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race or if !ttHit
+        && tte->depth() >= ttDepth
         && (tte->bound() & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
         return ttValue;
 

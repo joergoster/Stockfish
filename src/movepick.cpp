@@ -47,6 +47,8 @@ namespace {
         }
   }
 
+  Bitboard threatenedByPawn, threatenedByMinor, threatenedByRook, threatenedPieces;
+
 } // namespace
 
 
@@ -71,6 +73,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
           !(ttm && pos.pseudo_legal(ttm));
 }
 
+
 /// MovePicker constructor for quiescence search
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHistory* mh,
                                                              const CapturePieceToHistory* cph,
@@ -85,6 +88,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, const ButterflyHist
             && pos.pseudo_legal(ttm));
 }
 
+
 /// MovePicker constructor for ProbCut: we generate captures with SEE greater
 /// than or equal to the given threshold.
 MovePicker::MovePicker(const Position& p, Move ttm, Value th, const CapturePieceToHistory* cph)
@@ -97,6 +101,24 @@ MovePicker::MovePicker(const Position& p, Move ttm, Value th, const CapturePiece
                              && pos.see_ge(ttm, threshold));
 }
 
+
+/// MovePicker::quiet_init() computes some attack info used for
+/// scoring quiet moves evading a possible capture.
+void MovePicker::quiet_init() {
+
+  Color us = pos.side_to_move();
+
+  threatenedByPawn  = pos.attacks_by<PAWN>(~us);
+  threatenedByMinor = pos.attacks_by<KNIGHT>(~us) | pos.attacks_by<BISHOP>(~us) | threatenedByPawn;
+  threatenedByRook  = pos.attacks_by<ROOK>(~us) | threatenedByMinor;
+
+  // Pieces threatened by pieces of lesser material value
+  threatenedPieces =  (pos.pieces(us, QUEEN) & threatenedByRook)
+                    | (pos.pieces(us, ROOK)  & threatenedByMinor)
+                    | (pos.pieces(us, KNIGHT, BISHOP) & threatenedByPawn);
+}
+
+
 /// MovePicker::score() assigns a numerical value to each move in a list, used
 /// for sorting. Captures are ordered by Most Valuable Victim (MVV), preferring
 /// captures with a good history. Quiets moves are ordered using the history tables.
@@ -104,21 +126,6 @@ template<GenType Type>
 void MovePicker::score() {
 
   static_assert(Type == CAPTURES || Type == QUIETS || Type == EVASIONS, "Wrong type");
-
-  [[maybe_unused]] Bitboard threatenedByPawn, threatenedByMinor, threatenedByRook, threatenedPieces;
-  if constexpr (Type == QUIETS)
-  {
-      Color us = pos.side_to_move();
-
-      threatenedByPawn  = pos.attacks_by<PAWN>(~us);
-      threatenedByMinor = pos.attacks_by<KNIGHT>(~us) | pos.attacks_by<BISHOP>(~us) | threatenedByPawn;
-      threatenedByRook  = pos.attacks_by<ROOK>(~us) | threatenedByMinor;
-
-      // Pieces threatened by pieces of lesser material value
-      threatenedPieces = (pos.pieces(us, QUEEN) & threatenedByRook)
-                       | (pos.pieces(us, ROOK)  & threatenedByMinor)
-                       | (pos.pieces(us, KNIGHT, BISHOP) & threatenedByPawn);
-  }
 
   const Square theirKing = pos.square<KING>(~pos.side_to_move());
   const Bitboard kingRing = pos.attacks_from<KING>(theirKing);
@@ -173,7 +180,6 @@ void MovePicker::score() {
                   m.value += 4000;
           }
 
-
           // Bonus for pawns
           if (type_of(movedPiece) == PAWN)
           {
@@ -223,6 +229,7 @@ void MovePicker::score() {
   }
 }
 
+
 /// MovePicker::select() returns the next move satisfying a predicate function.
 /// It never returns the TT move.
 template<MovePicker::PickType T, typename Pred>
@@ -240,6 +247,7 @@ Move MovePicker::select(Pred filter) {
   }
   return MOVE_NONE;
 }
+
 
 /// MovePicker::next_move() is the most important method of the MovePicker class. It
 /// returns a new pseudo-legal move every time it is called until there are no more
@@ -287,7 +295,7 @@ top:
       [[fallthrough]];
 
   case REFUTATION:
-      if (select<Next>([&](){ return    *cur != MOVE_NONE
+      if (select<Next>([&](){ return   *cur != MOVE_NONE
                                     && !pos.capture_stage(*cur)
                                     &&  pos.pseudo_legal(*cur); }))
           return *(cur - 1);
@@ -300,6 +308,7 @@ top:
           cur = endBadCaptures;
           endMoves = generate<QUIETS>(pos, cur);
 
+          quiet_init();
           score<QUIETS>();
           partial_insertion_sort(cur, endMoves, -3000 * depth);
       }
@@ -308,7 +317,7 @@ top:
       [[fallthrough]];
 
   case QUIET:
-      if (   !skipQuiets
+      if (  !skipQuiets
           && select<Next>([&](){return   *cur != refutations[0].move
                                       && *cur != refutations[1].move
                                       && *cur != refutations[2].move;}))
