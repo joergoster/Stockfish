@@ -40,7 +40,6 @@ namespace Stockfish {
 struct StateInfo {
 
   // Copied when making a move
-  Key    pawnKey;
   Key    materialKey;
   Value  nonPawnMaterial[COLOR_NB];
   int    castlingRights;
@@ -91,7 +90,7 @@ public:
   std::string fen() const;
 
   // Position representation
-  Bitboard pieces(PieceType pt) const;
+  Bitboard pieces(PieceType pt = ALL_PIECES) const;
   template<typename ...PieceTypes> Bitboard pieces(PieceType pt, PieceTypes... pts) const;
   Bitboard pieces(Color c) const;
   template<typename ...PieceTypes> Bitboard pieces(Color c, PieceTypes... pts) const;
@@ -224,7 +223,7 @@ inline Piece Position::moved_piece(Move m) const {
   return piece_on(from_sq(m));
 }
 
-inline Bitboard Position::pieces(PieceType pt = ALL_PIECES) const {
+inline Bitboard Position::pieces(PieceType pt) const {
   return byTypeBB[pt];
 }
 
@@ -336,10 +335,6 @@ inline Key Position::adjust_key50(Key k) const
 {
   return st->rule50 < 14 - AfterMove
       ? k : k ^ make_key((st->rule50 - (14 - AfterMove)) / 8);
-}
-
-inline Key Position::pawn_key() const {
-  return st->pawnKey;
 }
 
 inline Key Position::material_key() const {
