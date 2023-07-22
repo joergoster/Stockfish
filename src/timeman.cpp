@@ -42,6 +42,7 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   if (limits.time[us] == 0)
       return;
 
+  TimePoint minThinkingTime = TimePoint(Options["Minimum Thinking Time"]);
   TimePoint moveOverhead    = TimePoint(Options["Move Overhead"]);
   TimePoint slowMover       = TimePoint(Options["Slow Mover"]);
   TimePoint npmsec          = TimePoint(Options["nodestime"]);
@@ -99,8 +100,8 @@ void TimeManagement::init(Search::LimitsType& limits, Color us, int ply) {
   }
 
   // Never use more than 80% of the available time for this move
-  optimumTime = TimePoint(optScale * timeLeft);
-  maximumTime = TimePoint(std::min(0.8 * limits.time[us] - moveOverhead, maxScale * optimumTime));
+  optimumTime = std::max(TimePoint(optScale * timeLeft), minThinkingTime);
+  maximumTime = TimePoint(std::min(std::max(0.8 * limits.time[us] - moveOverhead, 0.0), maxScale * optimumTime));
 
   if (Options["Ponder"])
       optimumTime += optimumTime / 4;
