@@ -234,10 +234,11 @@ void MainThread::search() {
   Thread* bestThread = this;
   Skill skill = Skill(Options["Skill Level"], Options["UCI_LimitStrength"] ? int(Options["UCI_Elo"]) : 0);
 
-  if (   int(Options["MultiPV"]) == 1
-      && !Limits.depth
+  if (   !Limits.depth
       && !skill.enabled()
-      && rootMoves[0].pv[0] != MOVE_NONE)
+      &&  Threads.size() > 1
+      &&  int(Options["MultiPV"]) == 1
+      &&  rootMoves[0].pv[0] != MOVE_NONE)
       bestThread = Threads.get_best_thread();
 
   bestPreviousScore = bestThread->rootMoves[0].score;
