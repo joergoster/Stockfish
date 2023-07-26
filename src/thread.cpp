@@ -255,7 +255,7 @@ Thread* ThreadPool::get_best_thread() const {
         auto thread_value = [minScore](Thread* th) {
             Value thScore = th->rootMoves[0].score != -VALUE_INFINITE ? th->rootMoves[0].score
                                                                       : th->rootMoves[0].previousScore;
-            return (thScore - minScore + 14) * int(th->rootDepth);
+            return (thScore - minScore + 24) * int(th->rootDepth) / 2;
         };
 
         // Vote according to score and depth, and select the best thread.
