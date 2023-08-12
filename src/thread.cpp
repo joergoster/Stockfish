@@ -232,8 +232,7 @@ Thread* ThreadPool::get_best_thread() const {
         // On equal scores prefer the thread with no fail-high/-low pv
         if (   thScore > maxScore
             || (   thScore == maxScore
-                && int(th->rootMoves[0].pv.size()) > 2
-                && int(bestThread->rootMoves[0].pv.size()) <= 2))
+                && th->rootMoves[0].pv.size() > bestThread->rootMoves[0].pv.size()))
         {
             maxScore = thScore;
             bestThread = th;
@@ -255,7 +254,7 @@ Thread* ThreadPool::get_best_thread() const {
         auto thread_value = [minScore](Thread* th) {
             Value thScore = th->rootMoves[0].score != -VALUE_INFINITE ? th->rootMoves[0].score
                                                                       : th->rootMoves[0].previousScore;
-            return (thScore - minScore + 24) * int(th->rootDepth) / 2;
+            return (thScore - minScore + 14 - 8 * (int(th->rootMoves[0].pv.size()) <= 2)) * th->rootDepth;
         };
 
         // Vote according to score and depth, and select the best thread.
@@ -267,8 +266,7 @@ Thread* ThreadPool::get_best_thread() const {
         {
             if (   votes[th->rootMoves[0].pv[0]] > votes[bestThread->rootMoves[0].pv[0]]
                 || (   votes[th->rootMoves[0].pv[0]] == votes[bestThread->rootMoves[0].pv[0]]
-                    && int(th->rootMoves[0].pv.size()) > 2
-                    && int(bestThread->rootMoves[0].pv.size()) <= 2))
+                    && thread_value(th) > thread_value(bestThread)))
                 bestThread = th;
         }
     }
