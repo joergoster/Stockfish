@@ -373,7 +373,7 @@ void Thread::search() {
           // type of move (pawn move, checking move, capture/sacrifice, knight forks, etc.)
           if (pvIdx && rootDepth > 4)
           {
-              int diffScore = (bestScore - prev) / (PawnValueEg / 4);
+              int diffScore = (bestScore - prev) / (PawnValue / 4);
               pvDepth = std::max(rootDepth - (3 * diffScore + 2 * msb(pvIdx)) / 4, std::max(rootDepth / 2, 4));
 
               if (rootPos.gives_check(rootMoves[pvIdx].pv[0]))
@@ -381,7 +381,7 @@ void Thread::search() {
 
               else if (   rootPos.capture_stage(rootMoves[pvIdx].pv[0])
                        || type_of(rootPos.piece_on(from_sq(rootMoves[pvIdx].pv[0]))) == PAWN)
-                  pvDepth += rootPos.non_pawn_material() <= EndgameLimit ? 2 : 1;
+                  pvDepth += rootPos.non_pawn_material() <= Value(3915) ? 2 : 1;
           }
 
           // Start with a small aspiration window and, in the case of a fail
