@@ -20,6 +20,7 @@
 #define SEARCH_H_INCLUDED
 
 #include <atomic>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
