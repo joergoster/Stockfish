@@ -976,13 +976,6 @@ moves_loop: // When in check, search starts here
     {
       assert(is_ok(move));
 
-      if (move == excludedMove)
-          continue;
-
-      // Check for legality
-      if (!pos.legal(move))
-          continue;
-
       // At root obey the "searchmoves" option and skip moves not listed in Root
       // Move List. As a consequence, any illegal move is also skipped. In MultiPV
       // mode we also skip PV moves that have been already searched and those
@@ -996,6 +989,11 @@ moves_loop: // When in check, search starts here
 
           if (   thisThread->pvIdx + 1 < thisThread->multiPV
               && move != ttMove)
+              continue;
+      }
+      else
+      {
+          if (move == excludedMove || !pos.legal(move))
               continue;
       }
 
