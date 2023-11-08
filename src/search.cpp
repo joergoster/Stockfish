@@ -622,16 +622,16 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
         ss->ttPv = PvNode || (ss->ttHit && tte->is_pv());
 
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && tte->depth() > depth
-        && ttValue != VALUE_NONE  // Possible in case of TT access race or if !ttHit
+    if (!PvNode && !excludedMove && ss->ply > thisThread->rootDepth / 8
+        && tte->depth() > depth && ttValue != VALUE_NONE  // Possible in case of no TT hit or TT access race
         && (tte->bound() & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit (~2 Elo)
+        // If TT move is quiet, update move sorting heuristics on TT hit (~2 Elo)
         if (ttMove)
         {
             if (ttValue >= beta)
             {
-                // Bonus for a quiet ttMove that fails high (~2 Elo)
+                // Bonus for a quiet TT move that fails high (~2 Elo)
                 if (!ttCapture)
                     update_quiet_stats(pos, ss, ttMove, stat_bonus(depth));
 
@@ -641,7 +641,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
                     update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
                                                   -stat_malus(depth + 1));
             }
-            // Penalty for a quiet ttMove that fails low (~1 Elo)
+            // Penalty for a quiet TT move that fails low (~1 Elo)
             else if (!ttCapture)
             {
                 int penalty = -stat_malus(depth);
@@ -651,7 +651,7 @@ Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, boo
         }
 
         // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
+        // For high rule50 counts don't produce TT cutoffs.
         if (pos.rule50_count() < 90)
             return ttValue;
     }
