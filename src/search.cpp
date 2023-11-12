@@ -382,8 +382,8 @@ void Thread::search() {
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
             // Adjust optimism based on root move's averageScore (~4 Elo)
-            optimism[us]  = 103 * (avg + 33) / (std::abs(avg + 34) + 119);
-            optimism[~us] = -116 * (avg + 40) / (std::abs(avg + 12) + 123);
+            optimism[us]  = 103 * avg / (std::abs(avg) + 119);
+            optimism[~us] = -116 * avg / (std::abs(avg) + 123);
 
             // Reduce the search depth for this PV line based on
             // root move's previous score and number of PV line.
