@@ -93,6 +93,7 @@ struct RootMove {
     int               selDepth        = 0;
     int               tbRank          = 0;
     Value             tbScore;
+    std::vector<Move> previousPv;
     std::vector<Move> pv;
 };
 

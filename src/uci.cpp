@@ -409,8 +409,12 @@ std::string UCI::pv(const Search::Worker& workerThread,
         ss << " nodes " << nodesSearched << " nps " << nodesSearched * 1000 / time << " hashfull "
            << hashfull << " tbhits " << tbHits << " time " << time << " pv";
 
-        for (Move m : rootMoves[i].pv)
-            ss << " " << move(m, pos.is_chess960());
+        if (updated)
+            for (Move m : rootMoves[i].pv)
+                ss << " " << UCI::move(m, pos.is_chess960());
+        else
+            for (Move m : rootMoves[i].previousPv)
+                ss << " " << UCI::move(m, pos.is_chess960());
     }
 
     return ss.str();

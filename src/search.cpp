@@ -312,10 +312,13 @@ void Search::Worker::iterative_deepening() {
         if (mainThread)
             totBestMoveChanges /= 2;
 
-        // Save the last iteration's scores before the first PV line is searched and
-        // all the move scores except the (new) PV are set to -VALUE_INFINITE.
+        // Save the last iteration's scores and PVs before the first PV line is searched
+        // and all the move scores except the (new) PV are set to -VALUE_INFINITE.
         for (RootMove& rm : rootMoves)
+        {
             rm.previousScore = rm.score;
+            rm.previousPv = rm.pv;
+        }
 
         size_t pvFirst = 0;
         pvLast         = 0;
@@ -1269,7 +1272,15 @@ moves_loop:  // When in check, search starts here
         // the search cannot be trusted, and we return immediately without
         // updating best move, PV and TT.
         if (threads.stop.load(std::memory_order_relaxed))
+        {
+            // At root, reset scores of this PV line and all remaining
+            // root moves, as they cannot be trusted!
+            if (rootNode)
+                for (size_t i = thisThread->pvIdx; i < thisThread->rootMoves.size(); i++)
+                    thisThread->rootMoves[i].score = -VALUE_INFINITE;
+
             return VALUE_ZERO;
+        }
 
         if (rootNode)
         {
