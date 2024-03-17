@@ -150,7 +150,13 @@ void UCI::loop() {
         else if (token == "flip")
             pos.flip();
         else if (token == "bench")
-            bench(pos, is, states);
+        {
+            auto currentFen = pos.fen();
+            auto currentChess960 = pos.is_chess960();
+            StateListPtr benchStates(new std::deque<StateInfo>(1));
+            bench(pos, is, benchStates);
+            pos.set(currentFen, currentChess960, &states->back());
+        }
         else if (token == "d")
             sync_cout << pos << sync_endl;
         else if (token == "eval")
