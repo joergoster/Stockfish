@@ -22,7 +22,6 @@
 #include <atomic>
 #include <cassert>
 #include <cmath>
-#include <cstring>
 #include <iostream>
 #include <new>
 #include <queue>
@@ -879,20 +878,15 @@ namespace {
     for (int i = 0; i < 128; i++)
         (ss+i)->ply = i;
 
-    Move PVTable[16384][MAX_PLY]; // For storing the PVs
-    for (int j = 0; j < 16384; j++)
-        for (int k = 0; k < MAX_PLY; k++)
-            PVTable[j][k] = MOVE_NONE;
+    ss->pv.clear();
 
     // Reuse nodes in a FIFO way
     std::queue<Node*> recyclingBin;
     
     bool recycling, giveOutput, updatePV;
     int targetDepth = std::min(2 * Limits.mate - 1, MAX_PLY-1);
-    int pvLine = 0;
     uint64_t iteration;
     uint32_t minPN, minDN, sumChildrenPN, sumChildrenDN;
-
     Thread* thisThread = pos.this_thread();
     TimePoint elapsed, lastOutputTime;
 
@@ -905,9 +899,11 @@ namespace {
     Node* nextNode = rootNode + 1; // Pointer to the next node
     Node* tmpNode;
 
-    for (RootMove& rm : thisThread->rootMoves)
-        rm.score = VALUE_ZERO, rm.selDepth = targetDepth;
+    // Needed for reporting a score and depth
     thisThread->rootDepth = targetDepth;
+
+    for (RootMove& rm : thisThread->rootMoves)
+        rm.score = VALUE_DRAW, rm.selDepth = targetDepth;
 
     // Save the root node.
     // 'rootNode' is used as a sentinel, because it can never
@@ -1083,14 +1079,14 @@ namespace {
                     nextNode->dn = andNode ? INFINITE : 0;
 
                     // If we have reached the specified mate distance, add
-                    // the move leading to this node to the current PV line.
-                    if (   ss->ply == targetDepth
-                        && pvLine < 16384)
+                    // the move leading to this node starting a new PV line.
+                    if (ss->ply == targetDepth)
                     {
                         assert(andNode);
 
                         updatePV = true;
-                        PVTable[pvLine][ss->ply-1] = move;
+                        ss->pv.clear();
+                        ss->pv.push_back(move);
                     }
                 }
                 else // Treat stalemates as a LOSS for the root side
@@ -1173,7 +1169,7 @@ namespace {
             if (!recycling)
                 nextNode++;
 
-            if (nextNode > &table[nodeCount-200] && recyclingBin.size() < 40)
+            if (nextNode > &table[nodeCount-100] && recyclingBin.size() < 20)
             {
                 sync_cout << "info string Running out of memory ..." << sync_endl;
 
@@ -1247,7 +1243,15 @@ namespace {
 
             // Update PV if necessary
             if (updatePV)
-                PVTable[pvLine][ss->ply-1] = currentNode->action();
+            {
+                // Reset PV and insert current best move
+                ss->pv.clear();
+                ss->pv.push_back(currentNode->action());
+
+                // Append child pv
+                for (auto& m : (ss+1)->pv)
+                    ss->pv.push_back(m);
+            }
 
             // Go back to the parent node
             pos.undo_move(currentNode->action());
@@ -1265,9 +1269,24 @@ namespace {
         iteration++;
         bestNode = rootNode;
 
+        // Assign the recursively built pv to the
+        // corresponding root move.
         if (updatePV)
         {
-            pvLine++;
+            RootMove& rm = *std::find(thisThread->rootMoves.begin(),
+                                      thisThread->rootMoves.end(), (ss+1)->pv.front());
+
+            if (int(rm.pv.size()) < int((ss+1)->pv.size())) // Really needed?
+            {
+                assert(targetDepth > 1);
+
+                rm.pv.resize(1);
+
+                // Append child pv
+                for (auto& m : (ss+2)->pv)
+                    rm.pv.push_back(m);
+            }
+
             updatePV = false;
         }
 
@@ -1301,58 +1320,24 @@ namespace {
         if (   Threads.stop.load()
             || giveOutput)
         {
-            // Assign the score and the PV to one root move only.
-            // In the best case it's the proving move.
-            Node* pvNode = rootNode;
-            Node* rootChild  = rootNode->firstChild;
-
-            while (rootChild != rootNode)
+            // Only if the root is proven, we assign a mate score
+            if (rootNode->get_pn() == 0)
             {
-                if (rootChild->get_pn() == 0)
+                Node* rootChild  = rootNode->firstChild;
+
+                while (rootChild != rootNode)
                 {
-                    pvNode = rootChild;
-                    break;
+                    if (rootChild->get_pn() == 0)
+                        break;
+
+                    rootChild = rootChild->nextSibling;
                 }
 
-                rootChild = rootChild->nextSibling;
-            }
-
-            if (rootNode->get_pn() == 0 && PVTable[0][0] != MOVE_NONE)
-            {
-                assert(pvNode->get_pn() == 0);
-
+                // Find the corresponding root move
                 RootMove& rm = *std::find(thisThread->rootMoves.begin(),
-                                          thisThread->rootMoves.end(), pvNode->action());
-                rm.pv.resize(1);
+                                          thisThread->rootMoves.end(), rootChild->action());
 
-                int m, n, pvLength;
-                for (m = 0; m < 16384; m++)
-                {
-                    pvLength = 1;
-
-                    if (PVTable[m][0] == rm.pv[0])
-                    {
-                        for (n = 1; n < MAX_PLY; n++)
-                        {
-                            if (PVTable[m][n] != MOVE_NONE)
-                                pvLength++;
-                            else
-                                break;
-                        }
-                    }
-
-                    if (pvLength == targetDepth)
-                        break;
-                }
-
-                for (n = 1; n < MAX_PLY; n++)
-                {
-                    if (PVTable[m][n] == MOVE_NONE)
-                        break;
-
-                    rm.pv.push_back(PVTable[m][n]);
-                }
-
+                // Assign the mate score
                 rm.score = VALUE_MATE - int(rm.pv.size());
             }
 
@@ -1362,7 +1347,6 @@ namespace {
             if (!Threads.stop.load())
                 sync_cout << UCI::pv(pos, targetDepth) << sync_endl;
         }
-
     }
 
     // Free allocated memory!

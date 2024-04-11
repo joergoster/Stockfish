@@ -21,6 +21,7 @@
 #ifndef SEARCH_H_INCLUDED
 #define SEARCH_H_INCLUDED
 
+#include <cstring>
 #include <vector>
 
 #include "misc.h"
@@ -118,9 +119,17 @@ struct Node {
 
 struct PnsStack {
 
+  PnsStack() {
+    std::memset(&st, 0, sizeof(StateInfo));
+    ply = 0;
+    parentNode = nullptr;
+    pv.reserve(16);
+  }
+
   StateInfo st;
   int ply;
   Node* parentNode;
+  std::vector<Move> pv;
 };
 
 
