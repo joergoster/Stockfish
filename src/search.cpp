@@ -83,7 +83,7 @@ namespace {
   // Function prototypes
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth);
   void pn_search(Position& pos);
-  Value syzygy_search(Position& pos, int ply);
+  Value syzygy_search(Position& pos, Stack* ss);
 
   // Global variables
   int allMoves, kingMoves;
@@ -261,8 +261,7 @@ void Search::init(Position& pos) {
   }
 
   // Now, sort the moves by their rank
-  std::stable_sort(searchMoves.begin(), searchMoves.end(),
-      [](const RootMove &a, const RootMove &b) { return a.tbRank > b.tbRank; });
+  std::stable_sort(searchMoves.begin(), searchMoves.end());
 
   // If requested, print out the root moves and their ranking
   if (Options["RootMoveStats"])
@@ -388,29 +387,6 @@ void MainThread::search() {
 
 void Thread::search() {
 
-  // Do we have a basic endgame mate like KQK, KRK,
-  // KBBK, KBNK or KNNNK? Then we don't need to search
-  // but we can get a mate line using the syzygy dtz tables.
-  if (   TB::RootInTB
-      && is_basic_mate(rootPos))
-  {
-      if (   this == Threads.main()
-          && rootMoves[0].tbRank > 900)
-      {
-          StateInfo rootSt;
-          rootMoves[0].pv.resize(1);
-
-          rootPos.do_move(rootMoves[0].pv[0], rootSt);
-          rootMoves[0].score = -syzygy_search(rootPos, 1);
-          rootPos.undo_move(rootMoves[0].pv[0]);
-
-          rootDepth = rootMoves[0].selDepth;
-          sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
-      }
-
-      return;
-  }
-  
   Stack stack[MAX_PLY+1], *ss = stack;
   StateInfo rootSt;
   Value alpha, beta, bestValue, value;
@@ -420,6 +396,31 @@ void Thread::search() {
 
   ss->pv.clear();
 
+  // Do we have a basic endgame mate like KQK, KRK,
+  // KBBK, KBNK or KNNNK? Then we don't need to search
+  // but we can get a mate line using the syzygy dtz tables.
+  if (   TB::RootInTB
+      && rootMoves[0].tbRank > 900
+      && is_basic_mate(rootPos))
+  {
+      if (this != Threads.main())
+          return;
+
+      rootPos.do_move(rootMoves[0].pv[0], rootSt);
+      rootMoves[0].score = -::syzygy_search(rootPos, ss+1);
+      rootPos.undo_move(rootMoves[0].pv[0]);
+
+      assert(rootMoves[0].pv.size() == 1);
+
+      // Append child pv
+      for (auto& m : (ss+1)->pv)
+          rootMoves[0].pv.push_back(m);
+
+      rootMoves[0].selDepth = int(rootMoves[0].pv.size());
+
+      return;
+  }
+  
   targetDepth = Limits.mate ? 2 * Limits.mate - 1 : MAX_PLY;
   fullDepth = std::max(targetDepth - (Limits.mate > 5 ? 4 : 2), 1);
   size_t multiPV = rootMoves.size();
@@ -1358,24 +1359,21 @@ namespace {
   // root position is a winning TB position. It repeatedly
   // calls itself until a mate is found.
 
-  Value syzygy_search(Position& pos, int ply) {
+  Value syzygy_search(Position& pos, Stack* ss) {
 
     StateInfo st;
     Move bestMove;
     Value bestValue;
     RootMoves legalMoves;
+    Thread* thisThread = pos.this_thread();
 
     bestMove = MOVE_NONE;
     bestValue = -VALUE_INFINITE;
+    ss->pv.clear();
 
     // No legal moves? Must be mate!
-    if (!MoveList<LEGAL>(pos).size())
-    {
-        pos.this_thread()->rootMoves[0].pv.resize(ply);
-        pos.this_thread()->rootMoves[0].selDepth = ply;
-
-        return mated_in(ply);
-    }
+    if (MoveList<LEGAL>(pos).size() == 0)
+        return mated_in(ss->ply);
 
     // Insert legal moves
     for (const auto& m : MoveList<LEGAL>(pos))
@@ -1383,16 +1381,20 @@ namespace {
 
     // Rank moves strictly by dtz and pick the best
     Tablebases::rank_root_moves(pos, legalMoves);
-    pos.this_thread()->tbHits += legalMoves.size();
-
+    thisThread->tbHits += legalMoves.size();
+    std::stable_sort(legalMoves.begin(), legalMoves.end());
     bestMove = legalMoves[0].pv[0];
 
     pos.do_move(bestMove, st);
-    pos.this_thread()->nodes++;
-    bestValue = -syzygy_search(pos, ply+1);
+    thisThread->nodes++;
+    bestValue = -syzygy_search(pos, ss+1);
     pos.undo_move(bestMove);
 
-    pos.this_thread()->rootMoves[0].pv[ply] = bestMove;
+    ss->pv.push_back(bestMove);
+
+    // Append child pv
+    for (auto& m : (ss+1)->pv)
+        ss->pv.push_back(m);
 
     return bestValue;
   }

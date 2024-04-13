@@ -70,7 +70,7 @@ struct RootMove {
   bool operator==(const Move& m) const { return pv[0] == m; }
   bool operator<(const RootMove& m) const { // Sort in descending order
     return m.score != score ? m.score < score
-                            : m.previousScore < previousScore;
+                            : m.tbRank < tbRank;
   }
 
   Value score = VALUE_DRAW;
