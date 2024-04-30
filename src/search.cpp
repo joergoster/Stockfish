@@ -575,6 +575,11 @@ namespace {
             && int(MoveList<LEGAL>(pos).size()) > allMoves)
             return VALUE_DRAW;
     }
+    else
+    {
+        if (pos.count<ALL_PIECES>(us) == 1) // No mating material left!
+            return VALUE_DRAW;
+    }
 
     // Check for draw by repetition
     if (pos.is_draw(ss->ply))
@@ -1099,6 +1104,12 @@ namespace {
             else if (   andNode
                      && kingMoves < 8
                      && int(MoveList<LEGAL, KING>(pos).size()) > kingMoves)
+            {
+                nextNode->pn = INFINITE;
+                nextNode->dn = 0;
+            }
+            else if (  !andNode
+                     && pos.count<ALL_PIECES>(pos.side_to_move()) == 1)
             {
                 nextNode->pn = INFINITE;
                 nextNode->dn = 0;

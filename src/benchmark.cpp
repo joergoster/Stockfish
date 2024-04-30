@@ -56,11 +56,16 @@ const vector<string> Defaults = {
 
   // Mate in 6
   "8/8/8/5B2/6QN/3prp2/3r1p2/3bbk1K w - - 0 1",
+  "r1bqkbnr/p1p1pppp/np1p4/8/2B5/4PQ2/PPPP1PPP/RNB1K1NR w KQkq -",
+
+  // Mate in 10
+  "8/5P2/8/8/8/n7/1pppp2K/br1r1kn1 w - -",
 
   // Mates with checks only
   // Mate in 6
   "1N1RK3/1p1N1p1b/1P1kBp1b/n2P3p/2p1Pr2/1n5Q/2q5/8 w - - 0 1",
-  
+  "1nbqkbnr/rpp1pppp/3p4/p6Q/2B5/4P3/PPPP1PPP/RNB1K1NR w KQk -",
+
   // Mate in 11
   "6r1/p1pq1p1p/1p1p1Qnk/3PrR2/2n1P1PP/P1P5/4R3/6K1 w - -",
 
@@ -151,8 +156,10 @@ vector<string> setup_bench(const Position& current, istream& is) {
               list.emplace_back("setoption name ProofNumberSearch value false");
 
           if (isDefault)
-              go = cnt == 19 ? "go mate 12" :
-                   cnt == 18 ? "go mate 11" :
+              go = cnt == 22 ? "go mate 12" :
+                   cnt == 21 ? "go mate 11" :
+                   cnt >= 19 ? "go mate 6"  :
+                   cnt == 18 ? "go mate 10" :
                    cnt >= 16 ? "go mate 6"  :
                    cnt >= 14 ? "go mate 5"  :
                    cnt >=  9 ? "go mate 4"  :
