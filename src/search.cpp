@@ -869,7 +869,7 @@ namespace {
     int mbSize = Options["PNS Hash"];
     int nodeCount = mbSize * 1024 * 1024 / sizeof(Node);
 
-    Node* table = (Node*) new(std::nothrow) Node[nodeCount];
+    Node* table = (Node*) new(std::nothrow) Node[nodeCount]();
 
     if (table == nullptr)
     {
@@ -1181,7 +1181,7 @@ namespace {
             if (!recycling)
                 nextNode++;
 
-            if (nextNode > &table[nodeCount-100] && recyclingBin.size() < 20)
+            if (nextNode > &table[nodeCount-100] && recyclingBin.size() < 100)
             {
                 sync_cout << "info string Running out of memory ..." << sync_endl;
 
