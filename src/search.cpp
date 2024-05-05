@@ -866,7 +866,7 @@ namespace {
   void pn_search(Position& pos) {
 
     // Prepare our PNS Hash Table where we store all nodes
-    int mbSize = Options["PNS Hash"];
+    int mbSize = std::min(int(Options["PNS Hash"]), 1024); // max. 1 GB
     int nodeCount = mbSize * 1024 * 1024 / sizeof(Node);
 
     Node* table = (Node*) new(std::nothrow) Node[nodeCount]();
