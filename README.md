@@ -11,22 +11,24 @@ It's still far from the functionality and speed offered by ChestUCI or Gustav.
 Matefish is best used in a terminal or Windows command line.
 
 
-# Examples
+# Examples Alpha-Beta Search
 ```
 position fen 8/8/8/8/2Np4/3N4/k1K5/8 w - -
 go mate 4
-info depth 1 seldepth 1 multipv 1 score cp 0 nodes 2 nps 1000 tbhits 0 time 2 pv d3c1
-info depth 3 seldepth 3 multipv 1 score cp 0 nodes 68 nps 34000 tbhits 0 time 2 pv d3c1
-info depth 5 seldepth 5 multipv 1 score cp 0 nodes 1086 nps 543000 tbhits 0 time 2 pv d3c1
+info string Starting Alpha-Beta Search ...
+info time 2 multipv 1 depth 1 seldepth 1 nodes 2 nps 1000 tbhits 0 score cp 0 pv d3c1
+info time 2 multipv 1 depth 3 seldepth 7 nodes 68 nps 34000 tbhits 0 score cp 0 pv d3c1
+info time 3 multipv 1 depth 5 seldepth 7 nodes 2871 nps 957000 tbhits 0 score cp 0 pv d3c1
 info string Success! Mate in 4 found!
-info depth 7 seldepth 7 multipv 1 score mate 4 nodes 1570 nps 785000 tbhits 0 time 2 pv d3b4 a2a1 c4a3 d4d3 c2b3 d3d2 b4c2
+info time 4 multipv 1 depth 7 seldepth 7 nodes 3342 nps 835500 tbhits 0 score mate 4 pv d3b4 a2a1 c4a3 d4d3 c2b3 d3d2 b4c2
 bestmove d3b4 ponder a2a1
 
 position fen 6r1/p1pq1p1p/1p1p1Qnk/3PrR2/2n1P1PP/P1P5/4R3/6K1 w - -
 go depth 11
-info depth 1 seldepth 1 multipv 1 score cp 0 nodes 5 nps 2500 tbhits 0 time 2 pv f6g6
+info string Starting Alpha-Beta Search ...
+info time 1 multipv 1 depth 1 seldepth 1 nodes 5 nps 5000 tbhits 0 score cp 0 pv f6g6
 info string Success! Mate in 11 found!
-info depth 3 seldepth 21 multipv 1 score mate 11 nodes 3807 nps 1269000 tbhits 0 time 3 pv f5h5 e5h5 g4g5 h5g5 h4g5 h6h5 e2h2 h5g4 h2g2 g4h5 f6f3 h5h4 f3g3 h4h5 g2h2 d7h3 g3h3 g6h4 h3h4 h5g6 h4h6
+info time 3 multipv 1 depth 3 seldepth 21 nodes 2637 nps 879000 tbhits 0 score mate 11 pv f5h5 e5h5 g4g5 h5g5 h4g5 h6h5 e2h2 g6h4 f6h6 h5g4 h6h4 g4f3 h2f2 f3e3 h4g3 e3e4 g3f3 e4e5 f2e2 c4e3 e2e3
 bestmove f5h5 ponder e5h5
 ```
 
@@ -44,6 +46,28 @@ bestmove e1d2 ponder e8d7
 
 ```
 
+Additionally, Matefish now offers the possibility to run a **ProofNumberSearch!**
+For more information on this search method see https://www.chessprogramming.org/Proof-Number_Search.
+Please note, the PNS Hash is currently limited to 1 GB. Nevertheless, PNS is able to solve mates
+which are currently out of reach for the default Alpha-Beta search!
+
+# Examples Proof-Number Search
+```
+setoption name ProofNumberSearch value true
+position fen 8/5P2/8/8/8/n7/1pppp2K/br1r1kn1 w - -
+go mate 10
+info string Starting Proof-Number Search ...
+info string Success! Mate in 10 found!
+info time 52 multipv 1 depth 19 seldepth 19 nodes 199774 nps 3841807 tbhits 0 score mate 10 pv f7f8q f1e1 f8a3 e1f1 a3f8 f1e1 h2g1 d1c1 f8f2 e1d1 f2f3 d1e1 f3g3 e1d1 g3g4 d1e1 g4b4 c1d1 b4h4
+bestmove f7f8q ponder f1e1
+
+position fen 1R6/6pK/5p2/4p3/1B1p3n/8/p1p1pp2/1k3b2 w - - 0 1
+go mate 38
+info string Starting Proof-Number Search ...
+info string Success! Mate in 38 found!
+info time 63 multipv 1 depth 75 seldepth 75 nodes 294672 nps 4677333 tbhits 0 score mate 38 pv b4a3 b1a1 a3b2 a1b1 b2d4 b1c1 d4e3 c1d1 b8d8 d1e1 e3d2 e1d1 d2b4 d1c1 b4a3 c1b1 d8b8 b1a1 a3b2 a1b1 b2e5 b1c1 e5f4 c1d1 b8d8 d1e1 f4d2 e1d1 d2b4 d1c1 b4a3 c1b1 d8b8 b1a1 a3b2 a1b1 b2f6 b1c1 f6g5 c1d1 b8d8 d1e1 g5d2 e1d1 d2b4 d1c1 b4a3 c1b1 d8b8 b1a1 a3b2 a1b1 b2g7 b1c1 g7h6 c1d1 b8d8 d1e1 h6d2 e1d1 d2b4 d1c1 b4a3 c1b1 d8b8 b1a1 a3e7 c2c1q e7f6 c1b2 b8b2 e2e1q b2b3 e1c3 f6c3
+bestmove b4a3 ponder b1a1
+```
 
 ## Terms of use
 
