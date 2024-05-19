@@ -2,14 +2,16 @@
 Matefish is a mate-solving program for standard checkmate problems.
 It is a UCI chess engine based on Stockfish 11, yet the search has completely been rewritten
 for the purpose to solve checkmate problems as fast as possible.
+It's still far from the functionality and speed offered by ChestUCI or Gustav, though.
 
 It is mainly inspired by the publication REALIZATION OF THE CHESS MATE SOLVER APPLICATION
 http://www.doiserbia.nb.rs/img/doi/0354-0243/2004/0354-02430402273V.pdf
 and discussions on Talkchess and the german CSS forum.
 
-It's still far from the functionality and speed offered by ChestUCI or Gustav.
-Matefish is best used in a terminal or Windows command line.
-
+# Usage
+Matefish makes use of some prunings and extensions which are only safe if you specify the exact mate distance you are looking for. Starting an infinite analysis makes no sense.
+In a GUI, start a search with a fixed depth or mate limit. However, not all GUIs may support one or even both search limits. On a command-line you can either use 'go mate x' or 'go depth x', where x is the number of moves to the mate.
+Typically, this info is provided with the puzzle.
 
 # Examples Alpha-Beta Search
 ```
