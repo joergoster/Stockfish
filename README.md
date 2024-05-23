@@ -13,6 +13,16 @@ Matefish makes use of some prunings and extensions which are only safe if you sp
 In a GUI, start a search with a fixed depth or mate limit. However, not all GUIs may support one or even both search limits. On a command-line you can either use 'go mate x' or 'go depth x', where x is the number of moves to the mate.
 Typically, this info is provided with the puzzle.
 
+# Options
+**Threads** - Sets the number of threads to be used by the Alpha-Beta Search.
+**Hash** - A dummy option for the Fritz GUI (has no effect).
+**PNS Hash** - Memory to be used by the Proof-Number Search. Max. 1 GB for now.
+**KingMoves** - Number of moves (0 - 8) allowed for the opponent king.
+**AllMoves** - Number of all moves allowed for the opponent.
+**ProofNumberSearch** - Switch to Proof-Number search (only single-threaded).
+**RootMoveStats** - Prints some info about the scored and ranked root moves, mainly a debug option.
+**SyzygyPath** - Path to the Syzygy Endgame Tablebases, used by both search methods.
+
 # Examples Alpha-Beta Search
 ```
 position fen 8/8/8/8/2Np4/3N4/k1K5/8 w - -
