@@ -15,12 +15,19 @@ Typically, this info is provided with the puzzle.
 
 # Options
 **Threads** - Sets the number of threads to be used by the Alpha-Beta Search.
+
 **Hash** - A dummy option for the Fritz GUI (has no effect).
+
 **PNS Hash** - Memory to be used by the Proof-Number Search. Max. 1 GB for now.
+
 **KingMoves** - Number of moves (0 - 8) allowed for the opponent king.
+
 **AllMoves** - Number of all moves allowed for the opponent.
+
 **ProofNumberSearch** - Switch to Proof-Number search (only single-threaded).
+
 **RootMoveStats** - Prints some info about the scored and ranked root moves, mainly a debug option.
+
 **SyzygyPath** - Path to the Syzygy Endgame Tablebases, used by both search methods.
 
 # Examples Alpha-Beta Search
