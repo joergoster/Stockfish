@@ -100,7 +100,7 @@ vector<string> setup_bench(const Position& current, istream& is) {
   int cnt = 0;
   
   // Assign default values to missing arguments
-  string ttSize     = (is >> token) ? token : "64";
+  string ttSize     = (is >> token) ? token : "32";
   string threads    = (is >> token) ? token : "1";
   string limit      = (is >> token) ? token : "12";
   string fenFile    = (is >> token) ? token : "default";
@@ -139,6 +139,7 @@ vector<string> setup_bench(const Position& current, istream& is) {
 
   list.emplace_back("setoption name Threads value " + threads);
   list.emplace_back("setoption name Hash value " + ttSize);
+  list.emplace_back("setoption name PNS Hash value " + ttSize);
   list.emplace_back("ucinewgame");
 
   int posCounter = 0;
