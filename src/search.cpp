@@ -793,6 +793,30 @@ namespace {
             && bool(pos.pieces(us, BISHOP) & DarkSquares) != bool(pos.pieces(~us) & DarkSquares))
             continue;
 
+        // At lower iterations, skip unpromising moves for the mating side.
+        // However, not during the first two iterations, and less the closer
+        // we get to the final iteration, where no moves are skipped.
+        if (   !(ss->ply & 1)
+            && !extension
+            &&  moveCount
+            &&  depth > 1
+            &&  thisThread->targetDepth >= 7
+            &&  thisThread->rootDepth > 3
+            &&  thisThread->rootDepth < thisThread->targetDepth)
+        {
+            if (   thisThread->rootDepth < thisThread->targetDepth - 4
+                && lm.rank < 6000)
+                continue;
+
+            else if (   thisThread->rootDepth < thisThread->targetDepth - 2
+                     && lm.rank < 2000)
+                continue;
+
+            else if (   thisThread->rootDepth < thisThread->targetDepth
+                     && lm.rank < 0)
+                continue;
+        }
+
         // At frontier nodes we can skip all non-checking
         // and non-extended moves.
         if (    depth == 1
