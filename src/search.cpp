@@ -447,6 +447,7 @@ void Thread::search() {
 
           ++Movecount[rootDepth];
 
+          if (    this == Threads.main()
               && (Time.elapsed() > 300 || (rootDepth == targetDepth && targetDepth >= 7) || rootDepth > 11))
               sync_cout << "info currmove "  << UCI::move(rootMoves[pvIdx].pv[0], rootPos.is_chess960())
                         << " currmovenumber " << Movecount[rootDepth].load() << sync_endl;
