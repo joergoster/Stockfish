@@ -363,7 +363,7 @@ void MainThread::search() {
 
   // Give some info about the final result of the search
   if (bestThread->rootMoves[0].score < VALUE_MATE_IN_MAX_PLY)
-      sync_cout << "info string Failure! No mate found!" << sync_endl;
+      sync_cout << "info string Failure! No mate in " << Limits.mate << " found!" << sync_endl;
   else
       sync_cout << "info string Success! Mate in "
                 << (VALUE_MATE - bestThread->rootMoves[0].score + 1) / 2 << " found!" << sync_endl;
@@ -447,7 +447,7 @@ void Thread::search() {
 
           ++Movecount[rootDepth];
 
-          if (this == Threads.main() && (Time.elapsed() > 300 || rootDepth > 11))
+              && (Time.elapsed() > 300 || (rootDepth == targetDepth && targetDepth >= 7) || rootDepth > 11))
               sync_cout << "info currmove "  << UCI::move(rootMoves[pvIdx].pv[0], rootPos.is_chess960())
                         << " currmovenumber " << Movecount[rootDepth].load() << sync_endl;
 
