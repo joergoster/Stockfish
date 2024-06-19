@@ -1145,6 +1145,7 @@ bool Position::has_repeated() const {
 
     StateInfo* stc = st;
     int        end = std::min(st->rule50, st->pliesFromNull);
+
     while (end-- >= 4)
     {
         if (stc->repetition)
@@ -1152,6 +1153,7 @@ bool Position::has_repeated() const {
 
         stc = stc->previous;
     }
+
     return false;
 }
 
@@ -1161,7 +1163,6 @@ bool Position::has_repeated() const {
 bool Position::has_game_cycle(int ply) const {
 
     int j;
-
     int end = std::min(st->rule50, st->pliesFromNull);
 
     if (end < 3)
@@ -1173,25 +1174,25 @@ bool Position::has_game_cycle(int ply) const {
     for (int i = 3; i <= end; i += 2)
     {
         stp = stp->previous->previous;
-
         Key moveKey = originalKey ^ stp->key;
+
         if ((j = H1(moveKey), cuckoo[j] == moveKey) || (j = H2(moveKey), cuckoo[j] == moveKey))
         {
             Move   move = cuckooMove[j];
             Square s1   = move.from_sq();
             Square s2   = move.to_sq();
 
+            // In the cuckoo table, both moves Rc1c5 and Rc5c1 are stored in
+            // the same location, so we have to select which square to check.
+            if (color_of(piece_on(empty(s1) ? s2 : s1)) != side_to_move())
+                continue;
+
             if (!((between_bb(s1, s2) ^ s2) & pieces()))
             {
-                if (ply > i)
-                    return true;
-
                 // For nodes before or at the root, check that the move is a
                 // repetition rather than a move to the current position.
-                // In the cuckoo table, both moves Rc1c5 and Rc5c1 are stored in
-                // the same location, so we have to select which square to check.
-                if (color_of(piece_on(empty(s1) ? s2 : s1)) != side_to_move())
-                    continue;
+                if (ply > i)
+                    return true;
 
                 // For repetitions before or at the root, require one more
                 if (stp->repetition)
@@ -1199,6 +1200,7 @@ bool Position::has_game_cycle(int ply) const {
             }
         }
     }
+
     return false;
 }
 

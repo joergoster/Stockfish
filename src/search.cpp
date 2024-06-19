@@ -536,11 +536,14 @@ Value Search::Worker::search(
 
     // Check if we have an upcoming move that draws by repetition, or
     // if the opponent had an alternative move earlier to this position.
-    if (!rootNode && alpha < VALUE_DRAW && pos.has_game_cycle(ss->ply))
+    if (!rootNode && alpha < VALUE_DRAW - 1 && pos.has_game_cycle(ss->ply))
     {
-        alpha = value_draw(this->nodes);
-        if (alpha >= beta)
-            return alpha;
+        if (beta <= VALUE_DRAW + 1) // Beta cutoff
+            return VALUE_DRAW + 1;  // Assume the best result from value_draw()
+
+        assert(PvNode);
+
+        alpha = VALUE_DRAW - 2; // Ensure the drawing move will raise alpha!
     }
 
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
@@ -1412,11 +1415,14 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta,
 
     // Check if we have an upcoming move that draws by repetition, or if
     // the opponent had an alternative move earlier to this position. (~1 Elo)
-    if (alpha < VALUE_DRAW && pos.has_game_cycle(ss->ply))
+    if (alpha < VALUE_DRAW - 1 && pos.has_game_cycle(ss->ply))
     {
-        alpha = value_draw(this->nodes);
-        if (alpha >= beta)
-            return alpha;
+        if (beta <= VALUE_DRAW + 1) // Beta cutoff
+            return VALUE_DRAW + 1;  // Assume the best result from value_draw()
+
+        assert(PvNode);
+
+        alpha = VALUE_DRAW - 2; // Ensure the drawing move will raise alpha!
     }
 
     Move      pv[MAX_PLY + 1];
