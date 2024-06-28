@@ -2006,13 +2006,8 @@ void syzygy_extend_pv(const OptionsMap&              options,
 
         // Sort moves according to their above assigned rank, after rank_root_moves,
         // will differentiate moves with equal DTZ.
-        // Note: for the mating side prefer more moves, for the mated side prefer less moves.
-        if (ply & 1)
-            std::stable_sort(legalMoves.begin(), legalMoves.end(),
-              [](const Search::RootMove& a, const Search::RootMove& b) { return a.tbRank < b.tbRank; });
-        else
-            std::stable_sort(legalMoves.begin(), legalMoves.end(),
-              [](const Search::RootMove& a, const Search::RootMove& b) { return a.tbRank > b.tbRank; });
+        std::stable_sort(legalMoves.begin(), legalMoves.end(),
+            [](const Search::RootMove& a, const Search::RootMove& b) { return a.tbRank < b.tbRank; });
 
         // The winning side tries to minimize DTZ, the losing side maximizes it.
         Tablebases::Config config = Tablebases::rank_root_moves(options, pos, legalMoves, true);
