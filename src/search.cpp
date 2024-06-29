@@ -1984,6 +1984,8 @@ void syzygy_extend_pv(const OptionsMap&              options,
     // resize the PV to the correct part
     rootMove.pv.resize(ply + 1);
 
+    sync_cout << "info string Extending PV from halfmove " << ply + 1 << sync_endl;
+
     // Now extend the PV to mate
     while (true)
     {
@@ -2027,6 +2029,8 @@ void syzygy_extend_pv(const OptionsMap&              options,
     for (auto it = rootMove.pv.rbegin(); it != rootMove.pv.rend(); ++it)
         pos.undo_move(*it);
 
+    sync_cout << "info string Length of extended PV line is " << rootMove.pv.size() << " halfmoves." << sync_endl;
+
     if (time_abort())
         sync_cout
           << "info string Syzygy based PV extension requires more time, increase Move Overhead as needed."
@@ -2063,7 +2067,8 @@ void SearchManager::pv(Search::Worker&           worker,
         v       = tb ? rootMoves[i].tbScore : v;
 
         // Potentially correct and extend the PV.
-        if (std::abs(v) >= VALUE_TB_WIN_IN_MAX_PLY && std::abs(v) < VALUE_MATE_IN_MAX_PLY)
+        if (   !rootMoves[i].scoreLowerbound && !rootMoves[i].scoreUpperbound
+            && (std::abs(v) >= VALUE_TB_WIN_IN_MAX_PLY && std::abs(v) < VALUE_MATE_IN_MAX_PLY))
             syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i]);
 
         std::string pv;
