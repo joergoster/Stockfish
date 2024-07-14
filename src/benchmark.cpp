@@ -138,7 +138,6 @@ vector<string> setup_bench(const Position& current, istream& is) {
   go = "go " + limitType + " " + limit;
 
   list.emplace_back("setoption name Threads value " + threads);
-  list.emplace_back("setoption name Hash value " + ttSize);
   list.emplace_back("setoption name PNS Hash value " + ttSize);
   list.emplace_back("ucinewgame");
 
