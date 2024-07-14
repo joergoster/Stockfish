@@ -90,12 +90,7 @@ using RootMoves = std::vector<RootMove>;
 
 struct Node {
 
-  Node() :
-    move(MOVE_NONE), pn(0), dn(0), nextSibling(nullptr), firstChild(nullptr) {
-  }
-
   void save(uint32_t proof, uint32_t disproof, Move m, Node* sibling, Node* child) {
-
     pn = proof;
     dn = disproof;
     move = m;

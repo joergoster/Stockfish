@@ -29,6 +29,7 @@
 
 #include "bitboard.h"
 #include "misc.h"
+#include "memory.h"
 #include "movegen.h"
 #include "search.h"
 #include "thread.h"
@@ -891,10 +892,13 @@ namespace {
   void pn_search(Position& pos) {
 
     // Prepare our PNS Hash Table where we store all nodes
-    int mbSize = std::min(int(Options["PNS Hash"]), 1024); // max. 1 GB
-    int nodeCount = mbSize * 1024 * 1024 / sizeof(Node);
+    constexpr size_t MEGA = 1024 * 1024;
+    int mbSize            = std::min(int(Options["PNS Hash"]), 32768);
+    uint64_t nodeCount    = mbSize * MEGA / sizeof(Node);
 
-    Node* table = (Node*) new(std::nothrow) Node[nodeCount]();
+    // Using Stockfish's implementation for allocating memory. A big
+    // 'Thank you!' goes out to Disservin!
+    Node* table = static_cast<Node*>(aligned_large_pages_alloc(nodeCount * sizeof(Node)));
 
     if (table == nullptr)
     {
@@ -902,6 +906,8 @@ namespace {
                   << " MB for PNS hash." << std::endl;
         return;
     }
+
+    std::memset(&table[0], 0, nodeCount * sizeof(Node));
 
     // A small stack
     PnsStack stack[128], *ss = stack;
@@ -1387,7 +1393,7 @@ namespace {
     }
 
     // Free allocated memory!
-    delete[] table;
+    aligned_large_pages_free(table);
   }
 
 
