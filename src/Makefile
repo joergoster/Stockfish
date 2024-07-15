@@ -52,10 +52,10 @@ BINDIR = $(PREFIX)/bin
 PGOBENCH = $(WINE_PATH) ./$(EXE) bench
 
 ### Source and object files
-SRCS = benchmark.cpp bitboard.cpp main.cpp misc.cpp movegen.cpp position.cpp \
+SRCS = benchmark.cpp bitboard.cpp main.cpp memory.cpp misc.cpp movegen.cpp position.cpp \
 	 search.cpp thread.cpp timeman.cpp uci.cpp ucioption.cpp syzygy/tbprobe.cpp
 
-HEADERS = benchmark.h bitboard.h misc.h movegen.h position.h search.h \
+HEADERS = benchmark.h bitboard.h memory.h misc.h movegen.h position.h search.h \
 		syzygy/tbprobe.h thread.h thread_win32_osx.h timeman.h types.h uci.h 
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
