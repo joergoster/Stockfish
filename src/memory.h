@@ -38,13 +38,13 @@ void* std_aligned_alloc(size_t alignment, size_t size);
 void  std_aligned_free(void* ptr);
 // memory aligned by page size, min alignment: 4096 bytes
 void* aligned_large_pages_alloc(size_t size);
-// nop if mem == nullptr
-void aligned_large_pages_free(void* mem);
+void  aligned_large_pages_free(void* mem);
 
 // frees memory which was placed there with placement new.
 // works for both single objects and arrays of unknown bound
 template<typename T, typename FREE_FUNC>
 void memory_deleter(T* ptr, FREE_FUNC free_func) {
+
     if (!ptr)
         return;
 
@@ -53,20 +53,19 @@ void memory_deleter(T* ptr, FREE_FUNC free_func) {
         ptr->~T();
 
     free_func(ptr);
-    return;
 }
 
-// frees memory which was placed there with placement new.
-// works for both single objects and arrays of unknown bound
+// Frees memory which was placed there with placement new.
+// Works for both, single objects and arrays of unknown bound.
 template<typename T, typename FREE_FUNC>
 void memory_deleter_array(T* ptr, FREE_FUNC free_func) {
+
     if (!ptr)
         return;
 
-
-    // Move back on the pointer to where the size is allocated.
+    // Move back on the pointer to where the size is allocated
     const size_t array_offset = std::max(sizeof(size_t), alignof(T));
-    char*        raw_memory   = reinterpret_cast<char*>(ptr) - array_offset;
+    char* raw_memory = reinterpret_cast<char*>(ptr) - array_offset;
 
     if constexpr (!std::is_trivially_destructible_v<T>)
     {
@@ -80,26 +79,26 @@ void memory_deleter_array(T* ptr, FREE_FUNC free_func) {
     free_func(raw_memory);
 }
 
-// Allocates memory for a single object and places it there with placement new.
+// Allocates memory for a single object and places it there with placement new
 template<typename T, typename ALLOC_FUNC, typename... Args>
 inline std::enable_if_t<!std::is_array_v<T>, T*> memory_allocator(ALLOC_FUNC alloc_func,
                                                                   Args&&... args) {
     void* raw_memory = alloc_func(sizeof(T));
     ASSERT_ALIGNED(raw_memory, alignof(T));
+
     return new (raw_memory) T(std::forward<Args>(args)...);
 }
 
-// Allocates memory for an array of unknown bound and places it there with placement new.
+// Allocates memory for an array of unknown bound and places it there with placement new
 template<typename T, typename ALLOC_FUNC>
 inline std::enable_if_t<std::is_array_v<T>, std::remove_extent_t<T>*>
-memory_allocator(ALLOC_FUNC alloc_func, size_t num) {
-    using ElementType = std::remove_extent_t<T>;
+       memory_allocator(ALLOC_FUNC alloc_func, size_t num) {
 
+    using ElementType = std::remove_extent_t<T>;
     const size_t array_offset = std::max(sizeof(size_t), alignof(ElementType));
 
     // save the array size in the memory location
-    char* raw_memory =
-      reinterpret_cast<char*>(alloc_func(array_offset + num * sizeof(ElementType)));
+    char* raw_memory = reinterpret_cast<char*>(alloc_func(array_offset + num * sizeof(ElementType)));
     ASSERT_ALIGNED(raw_memory, alignof(T));
 
     new (raw_memory) size_t(num);
@@ -112,9 +111,7 @@ memory_allocator(ALLOC_FUNC alloc_func, size_t num) {
 }
 
 //
-//
 // aligned large page unique ptr
-//
 //
 
 template<typename T>
@@ -128,14 +125,14 @@ struct LargePageArrayDeleter {
 };
 
 template<typename T>
-using LargePagePtr =
-  std::conditional_t<std::is_array_v<T>,
-                     std::unique_ptr<T, LargePageArrayDeleter<std::remove_extent_t<T>>>,
-                     std::unique_ptr<T, LargePageDeleter<T>>>;
+using LargePagePtr = std::conditional_t<std::is_array_v<T>,
+                                        std::unique_ptr<T, LargePageArrayDeleter<std::remove_extent_t<T>>>,
+                                        std::unique_ptr<T, LargePageDeleter<T>>>;
 
 // make_unique_large_page for single objects
 template<typename T, typename... Args>
 std::enable_if_t<!std::is_array_v<T>, LargePagePtr<T>> make_unique_large_page(Args&&... args) {
+
     static_assert(alignof(T) <= 4096,
                   "aligned_large_pages_alloc() may fail for such a big alignment requirement of T");
 
@@ -158,9 +155,7 @@ std::enable_if_t<std::is_array_v<T>, LargePagePtr<T>> make_unique_large_page(siz
 }
 
 //
-//
 // aligned unique ptr
-//
 //
 
 template<typename T>
@@ -174,16 +169,16 @@ struct AlignedArrayDeleter {
 };
 
 template<typename T>
-using AlignedPtr =
-  std::conditional_t<std::is_array_v<T>,
-                     std::unique_ptr<T, AlignedArrayDeleter<std::remove_extent_t<T>>>,
-                     std::unique_ptr<T, AlignedDeleter<T>>>;
+using AlignedPtr = std::conditional_t<std::is_array_v<T>,
+                                      std::unique_ptr<T, AlignedArrayDeleter<std::remove_extent_t<T>>>,
+                                      std::unique_ptr<T, AlignedDeleter<T>>>;
 
 // make_unique_aligned for single objects
 template<typename T, typename... Args>
 std::enable_if_t<!std::is_array_v<T>, AlignedPtr<T>> make_unique_aligned(Args&&... args) {
+
     const auto func = [](size_t size) { return std_aligned_alloc(alignof(T), size); };
-    T*         obj  = memory_allocator<T>(func, std::forward<Args>(args)...);
+    T* obj = memory_allocator<T>(func, std::forward<Args>(args)...);
 
     return AlignedPtr<T>(obj);
 }
@@ -193,7 +188,7 @@ template<typename T>
 std::enable_if_t<std::is_array_v<T>, AlignedPtr<T>> make_unique_aligned(size_t num) {
     using ElementType = std::remove_extent_t<T>;
 
-    const auto   func   = [](size_t size) { return std_aligned_alloc(alignof(ElementType), size); };
+    const auto func = [](size_t size) { return std_aligned_alloc(alignof(ElementType), size); };
     ElementType* memory = memory_allocator<T>(func, num);
 
     return AlignedPtr<T>(memory);
@@ -205,11 +200,12 @@ std::enable_if_t<std::is_array_v<T>, AlignedPtr<T>> make_unique_aligned(size_t n
 // where N is the number of elements in the array.
 template<uintptr_t Alignment, typename T>
 T* align_ptr_up(T* ptr) {
+
     static_assert(alignof(T) < Alignment);
 
     const uintptr_t ptrint = reinterpret_cast<uintptr_t>(reinterpret_cast<char*>(ptr));
-    return reinterpret_cast<T*>(
-      reinterpret_cast<char*>((ptrint + (Alignment - 1)) / Alignment * Alignment));
+
+    return reinterpret_cast<T*>(reinterpret_cast<char*>((ptrint + (Alignment - 1)) / Alignment * Alignment));
 }
 
 #endif  // #ifndef MEMORY_H_INCLUDED

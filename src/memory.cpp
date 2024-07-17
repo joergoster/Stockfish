@@ -20,9 +20,9 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "memory.h"
-
 #include <cstdlib>
+
+#include "memory.h"
 
 #if __has_include("features.h")
     #include <features.h>
@@ -53,6 +53,7 @@
     #include <iostream>  // std::cerr
     #include <ostream>   // std::endl
     #include <windows.h>
+
 // The needed Windows API for processor groups could be missed from old Windows
 // versions, so instead of calling them directly (forcing the linker to resolve
 // the calls at compile time), try to load them at runtime. To do this we need
@@ -64,7 +65,6 @@ using AdjustTokenPrivileges_t =
   bool (*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES, PDWORD);
 }
 #endif
-
 
 // Wrapper for systems where the c++17 implementation
 // does not guarantee the availability of aligned_alloc(). Memory allocated with
@@ -113,6 +113,7 @@ static void* aligned_large_pages_alloc_windows([[maybe_unused]] size_t allocSize
     void*  mem = nullptr;
 
     const size_t largePageSize = GetLargePageMinimum();
+
     if (!largePageSize)
         return nullptr;
 
@@ -125,20 +126,24 @@ static void* aligned_large_pages_alloc_windows([[maybe_unused]] size_t allocSize
 
     auto OpenProcessToken_f =
       OpenProcessToken_t((void (*)()) GetProcAddress(hAdvapi32, "OpenProcessToken"));
+
     if (!OpenProcessToken_f)
         return nullptr;
+
     auto LookupPrivilegeValueA_f =
       LookupPrivilegeValueA_t((void (*)()) GetProcAddress(hAdvapi32, "LookupPrivilegeValueA"));
+
     if (!LookupPrivilegeValueA_f)
         return nullptr;
+
     auto AdjustTokenPrivileges_f =
       AdjustTokenPrivileges_t((void (*)()) GetProcAddress(hAdvapi32, "AdjustTokenPrivileges"));
+
     if (!AdjustTokenPrivileges_f)
         return nullptr;
 
     // We need SeLockMemoryPrivilege, so try to enable it for the process
-    if (!OpenProcessToken_f(  // OpenProcessToken()
-          GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hProcessToken))
+    if (!OpenProcessToken_f(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hProcessToken))
         return nullptr;
 
     if (LookupPrivilegeValueA_f(nullptr, "SeLockMemoryPrivilege", &luid))
@@ -153,14 +158,12 @@ static void* aligned_large_pages_alloc_windows([[maybe_unused]] size_t allocSize
 
         // Try to enable SeLockMemoryPrivilege. Note that even if AdjustTokenPrivileges() succeeds,
         // we still need to query GetLastError() to ensure that the privileges were actually obtained.
-        if (AdjustTokenPrivileges_f(hProcessToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &prevTp,
-                                    &prevTpLen)
+        if (   AdjustTokenPrivileges_f(hProcessToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &prevTp, &prevTpLen)
             && GetLastError() == ERROR_SUCCESS)
         {
             // Round up size to full pages and allocate
             allocSize = (allocSize + largePageSize - 1) & ~size_t(largePageSize - 1);
-            mem       = VirtualAlloc(nullptr, allocSize, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES,
-                                     PAGE_READWRITE);
+            mem       = VirtualAlloc(nullptr, allocSize, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
 
             // Privilege no longer needed, restore previous state
             AdjustTokenPrivileges_f(hProcessToken, FALSE, &prevTp, 0, nullptr, nullptr);
@@ -199,9 +202,11 @@ void* aligned_large_pages_alloc(size_t allocSize) {
     // Round up to multiples of alignment
     size_t size = ((allocSize + alignment - 1) / alignment) * alignment;
     void*  mem  = std_aligned_alloc(alignment, size);
+
     #if defined(MADV_HUGEPAGE)
     madvise(mem, size, MADV_HUGEPAGE);
     #endif
+
     return mem;
 }
 
