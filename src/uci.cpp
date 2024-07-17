@@ -30,7 +30,6 @@
 #include "position.h"
 #include "search.h"
 #include "thread.h"
-#include "timeman.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
@@ -99,7 +98,7 @@ namespace {
     if (Options.count(name))
         Options[name] = value;
     else
-        sync_cout << "No such option: " << name << sync_endl;
+        sync_cout << "info string No such option: " << name << sync_endl;
   }
 
 
@@ -120,23 +119,25 @@ namespace {
             while (is >> token)
                 limits.searchmoves.push_back(UCI::to_move(pos, token));
 
-        else if (token == "wtime")     is >> limits.time[WHITE];
-        else if (token == "btime")     is >> limits.time[BLACK];
-        else if (token == "winc")      is >> limits.inc[WHITE];
-        else if (token == "binc")      is >> limits.inc[BLACK];
-        else if (token == "movestogo") is >> limits.movestogo;
         else if (token == "depth")     is >> limits.mate;
+        else if (token == "mate")      is >> limits.mate;
         else if (token == "nodes")     is >> limits.nodes;
         else if (token == "movetime")  is >> limits.movetime;
-        else if (token == "mate")      is >> limits.mate;
         else if (token == "perft")     is >> limits.perft;
         else if (token == "infinite")  limits.infinite = 1;
     }
 
     // If the user or the GUI didn't specify a mate limit,
-    // e. g. by starting an infinite analysis, set it for them!
+    // e. g. by starting an infinite analysis, notify them
+    // and execute a simple mate in 1 search!
+    // (A GUI may expect at least a 'bestmove' after a 'go'.
     if (limits.mate == 0)
-        limits.mate = 50;
+    {
+		sync_cout << "info string Infinite analysis or game playing mode not supported!"
+		          << "\nPlease set a depth or mate limit." << sync_endl;
+
+        limits.mate = 1;
+    }
 
     Threads.start_thinking(pos, states, limits);
   }

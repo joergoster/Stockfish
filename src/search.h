@@ -131,23 +131,21 @@ struct PnsStack {
 
 
 /// LimitsType struct stores information sent by GUI about available time to
-/// search the current move, maximum depth/time, or if we are in analysis mode.
+/// search the current move, maximum depth/nodes, or if we are in analysis mode.
 
 struct LimitsType {
 
   LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
-    time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] = npmsec = movetime = TimePoint(0);
-    movestogo = depth = mate = perft = infinite = 0;
+	movetime = startTime = TimePoint(0);
+    depth = mate = perft = infinite = 0;
     nodes = 0;
   }
 
-  bool use_time_management() const {
-    return !(mate | movetime | depth | nodes | perft | infinite);
-  }
+  TimePoint elapsed_time() const { return now() - startTime; }
 
   std::vector<Move> searchmoves;
-  TimePoint time[COLOR_NB], inc[COLOR_NB], npmsec, movetime, startTime;
-  int movestogo, depth, mate, perft, infinite;
+  TimePoint movetime, startTime;
+  int depth, mate, perft, infinite;
   int64_t nodes;
 };
 

@@ -60,10 +60,6 @@ void init(OptionsMap& o) {
   o["Threads"]               << Option(1, 1, 64, on_threads);
   o["Hash"]                  << Option(32, 1, 1024, on_hash_size);
   o["PNS Hash"]              << Option(32, 1, 32768);
-  o["MultiPV"]               << Option(1, 1, 500);
-  o["Move Overhead"]         << Option(30, 0, 5000);
-  o["Minimum Thinking Time"] << Option(20, 0, 5000);
-  o["Slow Mover"]            << Option(84, 10, 1000);
   o["KingMoves"]             << Option(8, 0, 8);
   o["AllMoves"]              << Option(250, 0, 250);
   o["ProofNumberSearch"]     << Option(false);

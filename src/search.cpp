@@ -35,7 +35,6 @@
 #include "movegen.h"
 #include "search.h"
 #include "thread.h"
-#include "timeman.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
@@ -327,7 +326,7 @@ void MainThread::search() {
       return;
   }
 
-  Time.init(Limits, rootPos.side_to_move(), rootPos.game_ply());
+//  Time.init(Limits, rootPos.side_to_move(), rootPos.game_ply());
 
   // Start the Proof-Number search, if requested
   if (Options["ProofNumberSearch"])
@@ -451,7 +450,7 @@ void Thread::search() {
           ++Movecount[rootDepth];
 
           if (    this == Threads.main()
-              && (Time.elapsed() > 300 || (rootDepth == targetDepth && targetDepth >= 7) || rootDepth > 11))
+              && (Limits.elapsed_time() > 300 || (rootDepth == targetDepth && targetDepth >= 7) || rootDepth > 11))
               sync_cout << "info currmove "  << UCI::move(rootMoves[pvIdx].pv[0], rootPos.is_chess960())
                         << " currmovenumber " << Movecount[rootDepth].load() << sync_endl;
 
@@ -553,6 +552,10 @@ namespace {
     ss->pv.clear();
 
     thisThread->selDepth = std::max(thisThread->selDepth, ss->ply);
+
+    // Check for the available remaining movetime or nodes
+    if (thisThread == Threads.main())
+        static_cast<MainThread*>(thisThread)->check_time();
 
     // Check for aborted search or maximum ply reached
     if (   Threads.stop.load()
@@ -1345,7 +1348,7 @@ namespace {
             Threads.stop = true;
             
         else if (   Limits.movetime
-                 && Time.elapsed() >= Limits.movetime)
+                 && Limits.elapsed_time() >= Limits.movetime)
             Threads.stop = true;
 
         // Time for another GUI update?
@@ -1353,10 +1356,10 @@ namespace {
         {
             elapsed = now();
 
-            giveOutput =  Time.elapsed() <  2100 ? elapsed - lastOutputTime >= 200
-                        : Time.elapsed() < 10100 ? elapsed - lastOutputTime >= 1000
-                        : Time.elapsed() < 60100 ? elapsed - lastOutputTime >= 2500
-                                                 : elapsed - lastOutputTime >= 5000;
+            giveOutput =  Limits.elapsed_time() <  2100 ? elapsed - lastOutputTime >= 200
+                        : Limits.elapsed_time() < 10100 ? elapsed - lastOutputTime >= 1000
+                        : Limits.elapsed_time() < 60100 ? elapsed - lastOutputTime >= 2500
+                                                        : elapsed - lastOutputTime >= 5000;
             if (giveOutput)
                 lastOutputTime = now();
         }
@@ -1455,11 +1458,11 @@ void MainThread::check_time() {
       return;
 
   // When using nodes, ensure checking rate is not lower than 0.1% of nodes
-  callsCnt = Limits.nodes ? std::min(1024, int(Limits.nodes / 1024)) : 1024;
+  callsCnt = Limits.nodes ? std::clamp(int(Limits.nodes / 1024), 8, 512) : 512;
 
   static TimePoint lastInfoTime = now();
 
-  TimePoint elapsed = Time.elapsed();
+  TimePoint elapsed = Limits.elapsed_time();
   TimePoint tick = Limits.startTime + elapsed;
 
   if (tick - lastInfoTime >= 1000)
@@ -1468,8 +1471,7 @@ void MainThread::check_time() {
       dbg_print();
   }
 
-  if (   (Limits.use_time_management() && elapsed > Time.maximum() - 10)
-      || (Limits.movetime && elapsed >= Limits.movetime)
+  if (   (Limits.movetime && elapsed >= Limits.movetime)
       || (Limits.nodes && Threads.nodes_searched() >= (uint64_t)Limits.nodes))
       Threads.stop = true;
 }
@@ -1481,7 +1483,7 @@ void MainThread::check_time() {
 string UCI::pv(const Position& pos, Depth depth) {
 
   std::stringstream ss;
-  TimePoint elapsed = Time.elapsed() + 1;
+  TimePoint elapsed = Limits.elapsed_time() + 1;
   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
   uint64_t nodesSearched = Threads.nodes_searched();
   uint64_t tbHits = Threads.tb_hits();
