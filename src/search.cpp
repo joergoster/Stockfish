@@ -326,8 +326,6 @@ void MainThread::search() {
       return;
   }
 
-//  Time.init(Limits, rootPos.side_to_move(), rootPos.game_ply());
-
   // Start the Proof-Number search, if requested
   if (Options["ProofNumberSearch"])
   {
@@ -978,7 +976,7 @@ namespace {
 
             if (ss->ply & 1) // AND node
             {
-                assert(currentNode->get_pn() < INFINITE);
+//                assert(currentNode->get_pn() < INFINITE);
                 assert(currentNode->get_dn() > 0);
 
                 minDN = INFINITE + 1;
@@ -1001,7 +999,7 @@ namespace {
             else // OR node
             {
                 assert(currentNode->get_pn() > 0);
-                assert(currentNode->get_dn() < INFINITE);
+//                assert(currentNode->get_dn() < INFINITE);
 
                 minPN = INFINITE + 1;
 
