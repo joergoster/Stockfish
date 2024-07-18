@@ -1245,14 +1245,23 @@ namespace {
                 while (childNode != rootNode)
                 {
                     sumChildrenPN = std::min(sumChildrenPN + childNode->get_pn(), INFINITE);
+                    minDN = std::min(childNode->get_dn(), minDN);
 
-                    if (childNode->get_dn() < minDN)
-                        minDN = childNode->get_dn();
-
-                    // Recycle disproven child nodes
+                    // Recycle disproven child nodes and also
+                    // all their children.
                     if (   childNode->get_pn() == INFINITE
                         && childNode->get_dn() == 0)
+                    {
                         recyclingBin.push(childNode);
+
+                        Node* recyclingNode = childNode->firstChild;
+
+                        while (recyclingNode != rootNode)
+                        {
+							recyclingBin.push(recyclingNode);
+							recyclingNode = recyclingNode->nextSibling;
+						}
+                    }
 
                     childNode = childNode->nextSibling;
                 }
@@ -1267,15 +1276,24 @@ namespace {
 
                 while (childNode != rootNode)
                 {
-                    if (childNode->get_pn() < minPN)
-                        minPN = childNode->get_pn();
-
+                    minPN = std::min(childNode->get_pn(), minPN);
                     sumChildrenDN = std::min(sumChildrenDN + childNode->get_dn(), INFINITE);
 
-                    // Recycle proven child nodes
+                    // Recycle proven child nodes and also
+                    // all their children.
                     if (   childNode->get_pn() == 0
                         && childNode->get_dn() == INFINITE)
+                    {
                         recyclingBin.push(childNode);
+
+                        Node* recyclingNode = childNode->firstChild;
+
+                        while (recyclingNode != rootNode)
+                        {
+							recyclingBin.push(recyclingNode);
+							recyclingNode = recyclingNode->nextSibling;
+						}
+                    }
 
                     childNode = childNode->nextSibling;
                 }
