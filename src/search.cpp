@@ -1258,9 +1258,9 @@ namespace {
 
                         while (recyclingNode != rootNode)
                         {
-							recyclingBin.push(recyclingNode);
-							recyclingNode = recyclingNode->nextSibling;
-						}
+                            recyclingBin.push(recyclingNode);
+                            recyclingNode = recyclingNode->nextSibling;
+                        }
                     }
 
                     childNode = childNode->nextSibling;
@@ -1290,9 +1290,9 @@ namespace {
 
                         while (recyclingNode != rootNode)
                         {
-							recyclingBin.push(recyclingNode);
-							recyclingNode = recyclingNode->nextSibling;
-						}
+                            recyclingBin.push(recyclingNode);
+                            recyclingNode = recyclingNode->nextSibling;
+                        }
                     }
 
                     childNode = childNode->nextSibling;
