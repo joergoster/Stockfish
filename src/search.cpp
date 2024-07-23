@@ -515,6 +515,7 @@ void Thread::search() {
       // Let the main thread report about the just finished depth
       if (this == Threads.main() && rootDepth < targetDepth)
       {
+          Limits.lastOutputTime = now();
           sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
 
           if (rootDepth > 7)
@@ -559,6 +560,17 @@ namespace {
     if (   Threads.stop.load()
         || ss->ply == MAX_PLY)
         return VALUE_ZERO;
+
+    else if (thisThread == Threads.main()) // Output some info every full minute
+    {
+        TimePoint elapsed = now();
+        
+        if (elapsed - Limits.lastOutputTime >= 60000)
+        {
+            Limits.lastOutputTime = elapsed;
+            sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
+        }
+    }
 
     // At the leafs, we simply either return a mate score
     // or zero. No evaluation needed!

@@ -136,7 +136,7 @@ struct PnsStack {
 struct LimitsType {
 
   LimitsType() { // Init explicitly due to broken value-initialization of non POD in MSVC
-	movetime = startTime = TimePoint(0);
+    lastOutputTime = movetime = startTime = TimePoint(0);
     depth = mate = perft = infinite = 0;
     nodes = 0;
   }
@@ -144,7 +144,7 @@ struct LimitsType {
   TimePoint elapsed_time() const { return now() - startTime; }
 
   std::vector<Move> searchmoves;
-  TimePoint movetime, startTime;
+  TimePoint lastOutputTime, movetime, startTime;
   int depth, mate, perft, infinite;
   int64_t nodes;
 };
