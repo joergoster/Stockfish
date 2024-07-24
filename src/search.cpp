@@ -445,6 +445,7 @@ void Thread::search() {
               && rootMoves[pvIdx].tbRank < 5000)
               continue;
 
+          selDepth = 1;
           ++Movecount[rootDepth];
 
           if (    this == Threads.main()
@@ -469,8 +470,6 @@ void Thread::search() {
                   continue;
           }
 
-          selDepth = 1;
-
           assert(is_ok(rootMoves[pvIdx].pv[0]));
           
           // Make, search and undo the root move
@@ -481,14 +480,17 @@ void Thread::search() {
 
           rootPos.undo_move(rootMoves[pvIdx].pv[0]);
 
+          // Assign the selective search depth to
+          // this root move.
+          rootMoves[pvIdx].selDepth = selDepth;
+
           if (value > bestValue)
           {
               bestValue = value;
 
-              // Assign the search value, selective search depth
-              // and the pv to this root move.
+              // Assign the search value and the PV
+              // to this root move.
               rootMoves[pvIdx].score = value;
-              rootMoves[pvIdx].selDepth = selDepth;
               rootMoves[pvIdx].pv.resize(1);
 
               // Append child pv
@@ -509,8 +511,6 @@ void Thread::search() {
 
       if (Threads.stop.load())
           break;
-
-      rootMoves[0].selDepth = selDepth;
 
       // Let the main thread report about the just finished depth
       if (this == Threads.main() && rootDepth < targetDepth)

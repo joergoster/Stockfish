@@ -77,7 +77,7 @@ struct RootMove {
 
   Value score = VALUE_DRAW;
   Value previousScore = VALUE_DRAW;
-  int selDepth = 0;
+  int selDepth = 1;
   int tbRank;
   int bestMoveCount = 0;
   Value tbScore;
