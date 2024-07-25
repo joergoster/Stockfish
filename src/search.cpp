@@ -83,6 +83,7 @@ namespace {
   }
 
   // Function prototypes
+  void score_and_rank_moves(Position& pos, std::vector<RankedMove>& movelist, int ply);
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth);
   void pn_search(Position& pos);
   Value syzygy_search(Position& pos, Stack* ss);
@@ -533,106 +534,16 @@ void Thread::search() {
 
 namespace {
 
-  // search<>() is the main search function
+  // score_and_rank_moves() generates and scores all legal moves for a given position
 
-  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
+  void score_and_rank_moves(Position& pos, std::vector<RankedMove>& movelist, int ply) {
 
     StateInfo st;
-    Value bestValue, value;
-    bool inCheck = !!pos.checkers();
-    int moveCount;
-    bool extension;
     Color us = pos.side_to_move();
-    Thread* thisThread = pos.this_thread();
 
-    assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
-
-    // Start with a fresh pv
-    ss->pv.clear();
-
-    thisThread->selDepth = std::max(thisThread->selDepth, ss->ply);
-
-    // Check for the available remaining movetime or nodes
-    if (thisThread == Threads.main())
-        static_cast<MainThread*>(thisThread)->check_time();
-
-    // Check for aborted search or maximum ply reached
-    if (   Threads.stop.load()
-        || ss->ply == MAX_PLY)
-        return VALUE_ZERO;
-
-    else if (thisThread == Threads.main()) // Output some info every full minute
-    {
-        TimePoint elapsed = now();
-        
-        if (elapsed - Limits.lastOutputTime >= 60000)
-        {
-            Limits.lastOutputTime = elapsed;
-            sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
-        }
-    }
-
-    // At the leafs, we simply either return a mate score
-    // or zero. No evaluation needed!
-    if (depth == 0)
-    {
-        if (inCheck && !MoveList<LEGAL>(pos).size())
-            return mated_in(ss->ply);
-        else
-            return VALUE_DRAW;
-    }
-
-    if (ss->ply & 1)
-    {
-        if (   kingMoves < 8
-            && int(MoveList<LEGAL, KING>(pos).size()) > kingMoves)
-            return VALUE_DRAW;
-
-        if (   allMoves < 250
-            && int(MoveList<LEGAL>(pos).size()) > allMoves)
-            return VALUE_DRAW;
-    }
-    else
-    {
-        if (pos.count<ALL_PIECES>(us) == 1) // No mating material left!
-            return VALUE_DRAW;
-    }
-
-    // Check for draw by repetition
-    if (pos.is_draw(ss->ply))
-        return VALUE_DRAW;
-
-    // Tablebase probe
-    if (    TB::MaxCardinality >= pos.count<ALL_PIECES>()
-        && !pos.can_castle(ANY_CASTLING))
-    {
-        TB::ProbeState err;
-        TB::WDLScore wdl = TB::probe_wdl(pos, &err);
-
-        if (err != TB::ProbeState::FAIL)
-        {
-            thisThread->tbHits++;
-
-            if (ss->ply & 1)
-            {
-                if (wdl != TB::WDLLoss && wdl != TB::WDLBlessedLoss)
-                    return VALUE_DRAW;
-            }
-            else
-            {
-                if (wdl != TB::WDLWin && wdl != TB::WDLCursedWin)
-                    return VALUE_DRAW;
-            }
-        }
-    }
-
-    bestValue = -VALUE_INFINITE;
-    moveCount = 0;
+    bool inCheck = !!pos.checkers();
     int rankThisMove = 0;
     int oppMoves;
-
-    std::vector<RankedMove> legalMoves;
-    legalMoves.reserve(64);
 
     [[maybe_unused]] Bitboard b1 = pos.checkers();
     [[maybe_unused]] Bitboard ourPawns = pos.pieces(us, PAWN);
@@ -640,7 +551,6 @@ namespace {
     [[maybe_unused]] Square theirKing = pos.square<KING>(~us);
     [[maybe_unused]] Bitboard kingRing = pos.attacks_from<KING>(theirKing);
 
-    // Score the moves! VERY IMPORTANT!!!
     for (const auto& m : MoveList<LEGAL>(pos))
     {
         // Checking moves get a high enough rank for both sides
@@ -650,7 +560,7 @@ namespace {
         if (pos.capture(m))
             rankThisMove += MVV[type_of(pos.piece_on(to_sq(m)))];
 
-        if (ss->ply & 1) // Side to get mated
+        if (ply & 1) // Side to get mated
         {
             if (inCheck)
             {
@@ -757,12 +667,117 @@ namespace {
         }
 
         // Add this ranked move
-        legalMoves.emplace_back(RankedMove(m, rankThisMove));
+        movelist.emplace_back(RankedMove(m, rankThisMove));
 
         rankThisMove = 0;
     }
 
-    std::sort(legalMoves.begin(), legalMoves.end());
+    // Finally, sort the moves according to their rank!
+    std::sort(movelist.begin(), movelist.end());
+  }
+
+
+  // search<>() is the main search function
+
+  Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
+
+    StateInfo st;
+    Value bestValue, value;
+    bool inCheck = !!pos.checkers();
+    int moveCount;
+    bool extension;
+    Color us = pos.side_to_move();
+    Thread* thisThread = pos.this_thread();
+
+    assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
+    assert(ss->ply > 0);
+
+    // Start with a fresh pv
+    ss->pv.clear();
+
+    thisThread->selDepth = std::max(thisThread->selDepth, ss->ply);
+
+    // Check for the available remaining movetime or nodes
+    if (thisThread == Threads.main())
+        static_cast<MainThread*>(thisThread)->check_time();
+
+    // Check for aborted search or maximum ply reached
+    if (   Threads.stop.load()
+        || ss->ply == MAX_PLY)
+        return VALUE_ZERO;
+
+    else if (thisThread == Threads.main()) // Output some info every full minute
+    {
+        TimePoint elapsed = now();
+        
+        if (elapsed - Limits.lastOutputTime >= 60000)
+        {
+            Limits.lastOutputTime = elapsed;
+            sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
+        }
+    }
+
+    // At the leafs, we simply either return a mate score
+    // or zero. No evaluation needed!
+    if (depth == 0)
+    {
+        if (inCheck && !MoveList<LEGAL>(pos).size())
+            return mated_in(ss->ply);
+        else
+            return VALUE_DRAW;
+    }
+
+    if (ss->ply & 1)
+    {
+        if (   kingMoves < 8
+            && int(MoveList<LEGAL, KING>(pos).size()) > kingMoves)
+            return VALUE_DRAW;
+
+        if (   allMoves < 250
+            && int(MoveList<LEGAL>(pos).size()) > allMoves)
+            return VALUE_DRAW;
+    }
+    else
+    {
+        if (pos.count<ALL_PIECES>(us) == 1) // No mating material left!
+            return VALUE_DRAW;
+    }
+
+    // Check for draw by repetition
+    if (pos.is_draw(ss->ply))
+        return VALUE_DRAW;
+
+    // Tablebase probe
+    if (    TB::MaxCardinality >= pos.count<ALL_PIECES>()
+        && !pos.can_castle(ANY_CASTLING))
+    {
+        TB::ProbeState err;
+        TB::WDLScore wdl = TB::probe_wdl(pos, &err);
+
+        if (err != TB::ProbeState::FAIL)
+        {
+            thisThread->tbHits++;
+
+            if (ss->ply & 1)
+            {
+                if (wdl != TB::WDLLoss && wdl != TB::WDLBlessedLoss)
+                    return VALUE_DRAW;
+            }
+            else
+            {
+                if (wdl != TB::WDLWin && wdl != TB::WDLCursedWin)
+                    return VALUE_DRAW;
+            }
+        }
+    }
+
+    bestValue = -VALUE_INFINITE;
+    moveCount = 0;
+
+    std::vector<RankedMove> legalMoves;
+    legalMoves.reserve(64);
+
+    score_and_rank_moves(pos, legalMoves, ss->ply);
 
     // Search all legal moves
     for (auto& lm : legalMoves)
