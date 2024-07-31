@@ -542,8 +542,7 @@ namespace {
     Color us = pos.side_to_move();
 
     bool inCheck = !!pos.checkers();
-    int rankThisMove = 0;
-    int oppMoves;
+    int oppMoves, rankThisMove;
 
     [[maybe_unused]] Bitboard b1 = pos.checkers();
     [[maybe_unused]] Bitboard ourPawns = pos.pieces(us, PAWN);
@@ -553,6 +552,8 @@ namespace {
 
     for (const auto& m : MoveList<LEGAL>(pos))
     {
+        rankThisMove = 0;
+
         // Checking moves get a high enough rank for both sides
         if (pos.gives_check(m))
             rankThisMove += 8000;
@@ -668,8 +669,6 @@ namespace {
 
         // Add this ranked move
         movelist.emplace_back(RankedMove(m, rankThisMove));
-
-        rankThisMove = 0;
     }
 
     // Finally, sort the moves according to their rank!
@@ -1077,6 +1076,13 @@ namespace {
         // We determined the Most-Proving Node (MPN).
         // Now, generate all child nodes and evaluate them
         // immediately.
+        std::vector<RankedMove> legalMoves;
+        legalMoves.reserve(64);
+
+        // Score and rank moves. This eventually allows the
+        // optimization at the end of the moves loop to kick
+        // in sooner.
+        score_and_rank_moves(pos, legalMoves, ss->ply);
 
         // The expanded node is 1 ply away
         const bool andNode = (ss->ply + 1) & 1;
@@ -1084,8 +1090,10 @@ namespace {
 
         std::memset(&ss->st, 0, sizeof(StateInfo));
 
-        for (auto& move : MoveList<LEGAL>(pos))
+        for (auto& lm : legalMoves)
         {
+            auto move = lm.move;
+
             // Skip moves at the root which are not part
             // of the root moves of this thread.
             if (    currentNode == rootNode
