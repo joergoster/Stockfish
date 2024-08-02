@@ -1087,6 +1087,7 @@ namespace {
         // The expanded node is 1 ply away
         const bool andNode = (ss->ply + 1) & 1;
         bool firstMove = true;
+        int movecount = 0;
 
         std::memset(&ss->st, 0, sizeof(StateInfo));
 
@@ -1101,12 +1102,17 @@ namespace {
                                thisThread->rootMoves.end(), move))
                 continue;
 
+            // Just like in the AB search, we can skip
+            // non-checking moves on frontier nodes.
             if (    ss->ply == targetDepth - 1
+                &&  movecount // Ensure at least one child node
                 && !pos.gives_check(move))
             {
                 assert(andNode);
                 continue;
             }
+
+            movecount++;
 
             pos.do_move(move, ss->st);
             thisThread->nodes++;
@@ -1148,7 +1154,8 @@ namespace {
             // nodes, the Proof- and Disproof Numbers are doing this for us!
             if (n == 0)
             {
-                if (pos.checkers()) // WIN for the root side
+                // WIN for the root side, A LOSS otherwise.
+                if (pos.checkers())
                 {
                     nextNode->pn = andNode ? 0 : INFINITE;
                     nextNode->dn = andNode ? INFINITE : 0;
@@ -1164,7 +1171,7 @@ namespace {
                         ss->pv.push_back(move);
                     }
                 }
-                else // Treat stalemates as a LOSS for the root side
+                else // Treat stalemates as a LOSS
                 {
                     nextNode->pn = INFINITE;
                     nextNode->dn = 0;
