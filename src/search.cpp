@@ -24,6 +24,7 @@
 #include <atomic>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <new>
 #include <queue>
@@ -58,7 +59,7 @@ using namespace Search;
 
 namespace {
 
-  constexpr uint32_t INFINITE = 10000000;
+  constexpr uint32_t INFINITE = UINT32_MAX / 2;
 
   // Basic piece values used for move-ordering
   constexpr int MVV[PIECE_TYPE_NB] = { 0, 100, 300, 305, 500, 900, 0, 0 };
@@ -956,6 +957,10 @@ namespace {
     Thread* thisThread = pos.this_thread();
     TimePoint elapsed, lastOutputTime;
 
+    // Counters for search statistics
+    int saved, solved, proven, disproven, recycled;
+    saved = solved = proven = disproven = recycled = 0;
+
     // Prepare the pointers
     Node* rootNode = &table[0];    // Pointer to the root node
     Node* currentNode = rootNode;
@@ -975,6 +980,7 @@ namespace {
     // 'rootNode' is used as a sentinel, because it can never
     // be a child or a sibling for any node!
     rootNode->save(1, 1, MOVE_NONE, rootNode, rootNode);
+    saved++;
 
     ss->parentNode = rootNode;
     lastOutputTime = now();
@@ -1129,6 +1135,7 @@ namespace {
             if (recyclingBin.size() >= 40)
             {
                 recycling = true;
+                recycled++;
 
                 // Use the oldest node first
                 nextNode = recyclingBin.front();
@@ -1141,6 +1148,7 @@ namespace {
             // non-terminal internal nodes with the number of moves necessary
             // to prove or to disprove a node.
             nextNode->save((andNode ? 1 + n : 1), (andNode ? 1 : 1 + n), move, rootNode, rootNode);
+            saved++;
 
             // Either add this node as first child node to the parent node,
             // or as next sibling node to the previous node.
@@ -1160,6 +1168,10 @@ namespace {
                     nextNode->pn = andNode ? 0 : INFINITE;
                     nextNode->dn = andNode ? INFINITE : 0;
 
+                    solved++;
+                    if (andNode) proven++;
+                    else disproven++;
+
                     // If we have reached the specified mate distance, add
                     // the move leading to this node starting a new PV line.
                     if (ss->ply == targetDepth)
@@ -1175,6 +1187,7 @@ namespace {
                 {
                     nextNode->pn = INFINITE;
                     nextNode->dn = 0;
+                    solved++, disproven++;
                 }
             }
             else if (   andNode
@@ -1183,17 +1196,20 @@ namespace {
             {
                 nextNode->pn = INFINITE;
                 nextNode->dn = 0;
+                solved++, disproven++;
             }
             else if (  !andNode
                      && pos.count<ALL_PIECES>(pos.side_to_move()) == 1)
             {
                 nextNode->pn = INFINITE;
                 nextNode->dn = 0;
+                solved++, disproven++;
             }
             else if (pos.is_draw(ss->ply) || ss->ply == targetDepth)
             {
                 nextNode->pn = INFINITE;
                 nextNode->dn = 0;
+                solved++, disproven++;
             }
             // Tablebase probe
             else if (    TB::MaxCardinality >= pos.count<ALL_PIECES>()
@@ -1212,6 +1228,7 @@ namespace {
                         {
                             nextNode->pn = INFINITE;
                             nextNode->dn = 0;
+                            solved++, disproven++;
                         }
                     }
                     else if (wdl == TB::WDLWin || wdl == TB::WDLCursedWin)
@@ -1220,12 +1237,14 @@ namespace {
                         {
                             nextNode->pn = INFINITE;
                             nextNode->dn = 0;
+                            solved++, disproven++;
                         }
                     }
                     else if (wdl == TB::WDLDraw)
                     {
                         nextNode->pn = INFINITE;
                         nextNode->dn = 0;
+                        solved++, disproven++;
                     }
                 }
             }
@@ -1454,6 +1473,14 @@ namespace {
                 sync_cout << UCI::pv(pos, targetDepth) << sync_endl;
         }
     }
+
+    // Output some info about the finished search
+    sync_cout << "info string Search statistics summary"
+              << "\nNodes: "      << saved
+              << "   solved: "    << solved
+              << "   proven: "    << proven
+              << "   disproven: " << disproven
+              << "   recycled: "  << recycled << sync_endl;
 
     // Free allocated memory!
     aligned_large_pages_free(table);
