@@ -1475,12 +1475,12 @@ namespace {
     }
 
     // Output some info about the finished search
-    sync_cout << "info string Search statistics summary"
-              << "\nNodes: "      << saved
-              << "   solved: "    << solved
-              << "   proven: "    << proven
-              << "   disproven: " << disproven
-              << "   recycled: "  << recycled << sync_endl;
+    sync_cout << "info string Search statistics summary" << std::endl;
+    std::cout << "info string Nodes: " << saved
+              << "   solved: "         << solved
+              << "   proven: "         << proven
+              << "   disproven: "      << disproven
+              << "   recycled: "       << recycled << sync_endl;
 
     // Free allocated memory!
     aligned_large_pages_free(table);
