@@ -70,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
 
   os << "   a   b   c   d   e   f   g   h\n";
 
-  os << "\nFen: " << pos.fen()
+  os << "\nFen: " << pos.fen() << " (" << pos.count<ALL_PIECES>(WHITE) << " + " << pos.count<ALL_PIECES>(BLACK) << ")"
      << "\nPositionKey: " << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << pos.key()
      << "\nMaterialKey: " << pos.material_key()
      << std::setfill(' ') << std::dec << "\nCheckers: ";
