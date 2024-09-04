@@ -447,7 +447,7 @@ void Thread::search() {
               && rootMoves[pvIdx].tbRank < 5000)
               continue;
 
-          selDepth = 1;
+          rootMoves[pvIdx].selDepth = 1;
           ++Movecount[rootDepth];
 
           if (    this == Threads.main()
@@ -481,10 +481,6 @@ void Thread::search() {
           value = -::search(rootPos, ss+1, -beta, -alpha, rootDepth-1);
 
           rootPos.undo_move(rootMoves[pvIdx].pv[0]);
-
-          // Assign the selective search depth to
-          // this root move.
-          rootMoves[pvIdx].selDepth = selDepth;
 
           if (value > bestValue)
           {
@@ -695,7 +691,8 @@ namespace {
     // Start with a fresh pv
     ss->pv.clear();
 
-    thisThread->selDepth = std::max(thisThread->selDepth, ss->ply);
+    thisThread->rootMoves[thisThread->pvIdx].selDepth =
+        std::max(thisThread->rootMoves[thisThread->pvIdx].selDepth, ss->ply);
 
     // Check for the available remaining movetime or nodes
     if (thisThread == Threads.main())

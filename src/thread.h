@@ -57,7 +57,6 @@ public:
   size_t id() const { return idx; }
 
   size_t pvIdx;
-  int selDepth;
   std::atomic<uint64_t> nodes, tbHits;
 
   Position rootPos;
