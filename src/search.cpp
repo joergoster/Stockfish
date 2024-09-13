@@ -919,6 +919,7 @@ moves_loop:  // When in check, search starts here
 
     int  moveCount        = 0;
     bool moveCountPruning = false;
+    [[maybe_unused]] Depth originalDepth = depth;
 
     // Step 13. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
@@ -945,8 +946,9 @@ moves_loop:  // When in check, search starts here
 
         // Restore nominal search depth for root moves after
         // a (or several) fail-high(s) of the previous root move!
-        if (rootNode && moveCount > 1)
-            depth = thisThread->rootDepth;
+        if (rootNode && moveCount > 1
+            && depth < thisThread->rootDepth - 1)
+            depth = (originalDepth + thisThread->rootDepth) / 2;
 
         if (rootNode && is_mainthread() && nodes > 10000000)
         {
