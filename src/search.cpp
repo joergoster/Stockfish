@@ -940,6 +940,12 @@ moves_loop:  // When in check, search starts here
 
         ss->moveCount = ++moveCount;
 
+        // Restore nominal search depth for root moves after
+        // a (or several) fail-high(s) of the previous root move!
+        if (rootNode && moveCount > 1
+            && depth < thisThread->rootDepth)
+            depth = thisThread->rootDepth;
+
         if (rootNode && is_mainthread() && nodes > 10000000)
         {
             main_manager()->updates.onIter(
