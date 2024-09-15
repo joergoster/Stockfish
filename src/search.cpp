@@ -249,15 +249,16 @@ void Search::Worker::iterative_deepening() {
             mainThread->iterValue.fill(mainThread->bestPreviousScore);
     }
 
-    size_t multiPV = size_t(options["MultiPV"]);
+    smartMultiPvMode = options["SmartMultiPVMode"];
+    multiPv = size_t(options["MultiPV"]);
     Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
     // When playing with strength handicap enable MultiPV search that we will
     // use behind-the-scenes to retrieve a set of possible moves.
     if (skill.enabled())
-        multiPV = std::max(multiPV, size_t(4));
+        multiPv = std::max(multiPv, size_t(4));
 
-    multiPV = std::min(multiPV, rootMoves.size());
+    multiPv = std::min(multiPv, rootMoves.size());
 
     int searchAgainCounter = 0;
 
@@ -281,7 +282,7 @@ void Search::Worker::iterative_deepening() {
             searchAgainCounter++;
 
         // MultiPV loop. We perform a full root search for each PV line
-        for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
+        for (pvIdx = 0; pvIdx < multiPv; ++pvIdx)
         {
             if (pvIdx == pvLast)
             {
@@ -323,7 +324,13 @@ void Search::Worker::iterative_deepening() {
                 // and we want to keep the same order for all the moves except the
                 // new PV that goes to the front. Note that in the case of MultiPV
                 // search the already searched PV lines are preserved.
-                std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+                if (smartMultiPvMode)
+                {
+                    if (pvIdx + 1 == multiPv)
+                        std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+                }
+                else
+                    std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
 
                 // If search has been stopped, we break immediately. Sorting is
                 // safe because RootMoves is still valid, although it refers to
@@ -334,7 +341,7 @@ void Search::Worker::iterative_deepening() {
                 // When failing high/low give some update before a re-search. To avoid
                 // excessive output that could hang GUIs like Fritz 19, only start
                 // at nodes > 10M (rather than depth N, which can be reached quickly)
-                if (mainThread && multiPV == 1 && (bestValue <= alpha || bestValue >= beta)
+                if (mainThread && multiPv == 1 && (bestValue <= alpha || bestValue >= beta)
                     && nodes > 10000000)
                     main_manager()->pv(*this, threads, tt, rootDepth);
 
@@ -366,7 +373,7 @@ void Search::Worker::iterative_deepening() {
             std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
             if (mainThread
-                && (threads.stop || pvIdx + 1 == multiPV || nodes > 10000000)
+                && (threads.stop || pvIdx + 1 == multiPv || nodes > 10000000)
                 // A thread that aborted search can have mated-in/TB-loss PV and
                 // score that cannot be trusted, i.e. it can be delayed or refuted
                 // if we would have had time to fully search other root-moves. Thus
@@ -414,7 +421,7 @@ void Search::Worker::iterative_deepening() {
 
         // If the skill level is enabled and time is up, pick a sub-optimal best move
         if (skill.enabled() && skill.time_to_pick(rootDepth))
-            skill.pick_best(rootMoves, multiPV);
+            skill.pick_best(rootMoves, multiPv);
 
         // Use part of the gained time from a previous stable move for the current move
         for (auto&& th : threads)
@@ -479,7 +486,7 @@ void Search::Worker::iterative_deepening() {
     if (skill.enabled())
         std::swap(rootMoves[0],
                   *std::find(rootMoves.begin(), rootMoves.end(),
-                             skill.best ? skill.best : skill.pick_best(rootMoves, multiPV)));
+                             skill.best ? skill.best : skill.pick_best(rootMoves, multiPv)));
 }
 
 // Reset histories, usually before a new game
@@ -931,12 +938,21 @@ moves_loop:  // When in check, search starts here
             continue;
 
         // At root obey the "searchmoves" option and skip moves not listed in Root
-        // Move List. In MultiPV mode we also skip PV moves that have been already
+        // Move List. In MultiPV mode we also skip PV moves that have already been
         // searched and those of lower "TB rank" if we are in a TB root position.
-        if (rootNode
-            && !std::count(thisThread->rootMoves.begin() + thisThread->pvIdx,
-                           thisThread->rootMoves.begin() + thisThread->pvLast, move))
-            continue;
+        if (rootNode)
+        {
+            if (!std::count(thisThread->rootMoves.begin() + thisThread->pvIdx,
+                            thisThread->rootMoves.begin() + thisThread->pvLast, move))
+                continue;
+
+            // In SmartMultiPVMode, we search all remaining moves only after
+            // the last PV line.
+            if (   thisThread->smartMultiPvMode
+                && thisThread->pvIdx + 1 < thisThread->multiPv
+                && move != thisThread->rootMoves[thisThread->pvIdx].pv[0])
+                continue;
+        }
 
         ss->moveCount = ++moveCount;
 
