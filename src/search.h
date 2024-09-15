@@ -333,7 +333,7 @@ class Worker {
     Position  rootPos;
     StateInfo rootState;
     RootMoves rootMoves;
-    Depth     rootDepth, completedDepth;
+    Depth     rootDepth, adjustedDepth, completedDepth;
     Value     rootDelta;
 
     size_t                    threadIdx;
