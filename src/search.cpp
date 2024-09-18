@@ -144,6 +144,7 @@ void Search::Worker::start_searching() {
 
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
                             main_manager()->originalTimeAdjust);
+    main_manager()->lastInfoFail = main_manager()->lastInfoCurrmove = now();
     tt.new_search();
 
     if (rootMoves.empty())
@@ -284,6 +285,9 @@ void Search::Worker::iterative_deepening() {
         // MultiPV loop. We perform a full root search for each PV line
         for (pvIdx = 0; pvIdx < multiPv; ++pvIdx)
         {
+            if (mainThread)
+                mainThread->newPVIdx = true;
+
             if (pvIdx == pvLast)
             {
                 pvFirst = pvLast;
@@ -338,12 +342,13 @@ void Search::Worker::iterative_deepening() {
                 if (threads.stop)
                     break;
 
-                // When failing high/low give some update before a re-search. To avoid
-                // excessive output that could hang GUIs like Fritz 19, only start
-                // at nodes > 10M (rather than depth N, which can be reached quickly)
+                // When failing high/low give some update before a re-search
                 if (mainThread && multiPv == 1 && (bestValue <= alpha || bestValue >= beta)
-                    && nodes > 10000000)
-                    main_manager()->pv(*this, threads, tt, rootDepth);
+                    && now() - mainThread->lastInfoFail > 1000)
+                {
+                    mainThread->pv(*this, threads, tt, rootDepth);
+                    mainThread->lastInfoFail = now();
+                }
 
                 // In case of failing low/high increase aspiration window and re-search,
                 // otherwise exit the loop.
@@ -377,15 +382,15 @@ void Search::Worker::iterative_deepening() {
                && int(rootMoves[0].pv.size()) == VALUE_MATE - abs(bestValue)) // Ensure full PV length
                 threads.stop = true;
 
-            if (mainThread
-                && (threads.stop || pvIdx + 1 == multiPv || nodes > 10000000)
+            // Output the just finished PV line
+            if (mainThread && (threads.stop || pvIdx + 1 == multiPv || elapsed() > 60000)
                 // A thread that aborted search can have mated-in/TB-loss PV and
                 // score that cannot be trusted, i.e. it can be delayed or refuted
                 // if we would have had time to fully search other root-moves. Thus
                 // we suppress this output and below pick a proven score/PV for this
                 // thread (from the previous iteration).
                 && !(threads.abortedSearch && rootMoves[0].score <= VALUE_TB_LOSS_IN_MAX_PLY))
-                main_manager()->pv(*this, threads, tt, rootDepth);
+                mainThread->pv(*this, threads, tt, rootDepth);
 
             if (threads.stop)
                 break;
@@ -958,10 +963,23 @@ moves_loop:  // When in check, search starts here
             && depth < thisThread->rootDepth)
             depth = thisThread->rootDepth;
 
-        if (rootNode && is_mainthread() && nodes > 10000000)
+        if (rootNode && is_mainthread() && elapsed() > 1000)
         {
-            main_manager()->updates.onIter(
-              {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + thisThread->pvIdx});
+            // Needed for GUIs to correctly display move 1 after starting
+            // a new iteration or PV line.
+            if (main_manager()->newPVIdx && moveCount == 1)
+            {
+                main_manager()->newPVIdx = false;
+                main_manager()->updates.onIter(
+                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + thisThread->pvIdx});
+            }
+            else if (   thisThread->pvIdx + 1 == thisThread->multiPv
+                     && now() - main_manager()->lastInfoCurrmove > 200)
+            {
+                main_manager()->updates.onIter(
+                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + thisThread->pvIdx});
+                main_manager()->lastInfoCurrmove = now();
+            }
         }
 
         if (PvNode)
@@ -1868,6 +1886,7 @@ Move Skill::pick_best(const RootMoves& rootMoves, size_t multiPV) {
 // Used to print debug info and, more importantly, to detect
 // when we are out of available time and thus stop the search.
 void SearchManager::check_time(Search::Worker& worker) {
+
     if (--callsCnt > 0)
         return;
 
