@@ -65,6 +65,9 @@ using namespace Search;
 
 namespace {
 
+constexpr Value DrawThreshold = 3 * PawnValue / 10;
+constexpr Value WinThreshold  = RookValue;
+
 // Futility margin
 Value futility_margin(Depth d, bool noTtCutNode, bool improving, bool oppWorsening) {
     Value futilityMult       = 122 - 37 * noTtCutNode;
@@ -1425,6 +1428,20 @@ moves_loop:  // When in check, search starts here
         thisThread->correctionHistory[us][pawn_structure_index<Correction>(pos)] << bonus;
     }
 
+    // Add bestValue to WDL stats if appropriate
+    if (bestValue <= -WinThreshold)
+    {
+        ss->ply % 2 == 0 ? thisThread->losses.fetch_add(1, std::memory_order_relaxed)
+                         : thisThread->wins.fetch_add(1, std::memory_order_relaxed);
+    }
+    else if (bestValue >= WinThreshold)
+    {
+        ss->ply % 2 == 0 ? thisThread->wins.fetch_add(1, std::memory_order_relaxed)
+                         : thisThread->losses.fetch_add(1, std::memory_order_relaxed);
+    }
+    else if (abs(bestValue) <= DrawThreshold)
+        thisThread->draws.fetch_add(1, std::memory_order_relaxed);
+
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
     return bestValue;
@@ -2059,6 +2076,9 @@ void SearchManager::pv(Search::Worker&           worker,
                        Depth                     depth) {
 
     const auto nodes     = threads.nodes_searched();
+    const auto wins      = threads.wins_found();
+    const auto draws     = threads.draws_found();
+    const auto losses    = threads.losses_found();
     const auto hashfull  = tt.hashfull();
     auto&      rootMoves = worker.rootMoves;
     auto&      pos       = worker.rootPos;
@@ -2097,7 +2117,10 @@ void SearchManager::pv(Search::Worker&           worker,
         if (!pv.empty())
             pv.pop_back();
 
-        auto wdl   = worker.options["UCI_ShowWDL"] ? UCIEngine::wdl(v, pos) : "";
+        auto wdl   = worker.options["UCI_ShowWDL"]   ?
+                     worker.options["WDLfromSearch"] ? UCIEngine::wdl_from_search(wins, draws, losses)
+                                                     : UCIEngine::wdl_from_value(v, pos)
+                                                     : "";
         auto bound = rootMoves[i].scoreLowerbound
                      ? "lowerbound"
                      : (rootMoves[i].scoreUpperbound ? "upperbound" : "");

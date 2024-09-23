@@ -96,6 +96,7 @@ Engine::Engine(std::string path) :
                                  Stockfish::Search::Skill::LowestElo,
                                  Stockfish::Search::Skill::HighestElo);
     options["UCI_ShowWDL"] << Option(false);
+    options["WDLfromSearch"] << Option(false);
     options["SyzygyPath"] << Option("", [](const Option& o) {
         Tablebases::init(o);
         return std::nullopt;

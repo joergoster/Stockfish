@@ -390,14 +390,26 @@ int UCIEngine::to_cp(Value v, const Position& pos) {
     return std::round(100 * int(v) / a);
 }
 
-std::string UCIEngine::wdl(Value v, const Position& pos) {
+std::string UCIEngine::wdl_from_value(Value v, const Position& pos) {
     std::stringstream ss;
 
     int wdl_w = win_rate_model(v, pos);
     int wdl_l = win_rate_model(-v, pos);
     int wdl_d = 1000 - wdl_w - wdl_l;
-    ss << wdl_w << " " << wdl_d << " " << wdl_l;
 
+    ss << wdl_w << " " << wdl_d << " " << wdl_l;
+    return ss.str();
+}
+
+std::string UCIEngine::wdl_from_search(uint64_t w, uint64_t d, uint64_t l) {
+    std::stringstream ss;
+    uint64_t sum = w + d + l + 1;
+
+    int wdl_w = int(double(w) / sum * 1000 + 0.5);
+    int wdl_l = int(double(l) / sum * 1000 + 0.5);
+    int wdl_d = 1000 - wdl_w - wdl_l;
+
+    ss << wdl_w << " " << wdl_d << " " << wdl_l;
     return ss.str();
 }
 

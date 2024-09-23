@@ -142,6 +142,9 @@ class ThreadPool {
     Thread*                main_thread() const { return threads.front().get(); }
     uint64_t               nodes_searched() const;
     uint64_t               tb_hits() const;
+    uint64_t               wins_found() const;
+    uint64_t               draws_found() const;
+    uint64_t               losses_found() const;
     Thread*                get_best_thread() const;
     void                   start_searching();
     void                   wait_for_search_finished() const;

@@ -102,7 +102,9 @@ void Thread::run_custom_job(std::function<void()> f) {
     cv.notify_one();
 }
 
-void Thread::ensure_network_replicated() { worker->ensure_network_replicated(); }
+void Thread::ensure_network_replicated() {
+    worker->ensure_network_replicated();
+}
 
 // Thread gets parked here, blocked on the condition variable
 // when the thread has no work to do.
@@ -128,10 +130,31 @@ void Thread::idle_loop() {
     }
 }
 
-Search::SearchManager* ThreadPool::main_manager() { return main_thread()->worker->main_manager(); }
+Search::SearchManager* ThreadPool::main_manager() {
+    return main_thread()->worker->main_manager();
+}
 
-uint64_t ThreadPool::nodes_searched() const { return accumulate(&Search::Worker::nodes); }
-uint64_t ThreadPool::tb_hits() const { return accumulate(&Search::Worker::tbHits); }
+// Helpers to return the summed up nodes, tbHits,
+// wins, draws and losses from all threads.
+uint64_t ThreadPool::nodes_searched() const {
+    return accumulate(&Search::Worker::nodes);
+}
+
+uint64_t ThreadPool::tb_hits() const {
+    return accumulate(&Search::Worker::tbHits);
+}
+
+uint64_t ThreadPool::wins_found() const {
+    return accumulate(&Search::Worker::wins);
+}
+
+uint64_t ThreadPool::draws_found() const {
+    return accumulate(&Search::Worker::draws);
+}
+
+uint64_t ThreadPool::losses_found() const {
+    return accumulate(&Search::Worker::losses);
+}
 
 // Creates/destroys threads to match the requested number.
 // Created and launched threads will immediately go to sleep in idle_loop.
@@ -203,6 +226,7 @@ void ThreadPool::set(const NumaConfig&                           numaConfig,
 
 // Sets threadPool data to initial values
 void ThreadPool::clear() {
+
     if (threads.size() == 0)
         return;
 
@@ -232,8 +256,9 @@ void ThreadPool::wait_on_thread(size_t threadId) {
     threads[threadId]->wait_for_search_finished();
 }
 
-size_t ThreadPool::num_threads() const { return threads.size(); }
-
+size_t ThreadPool::num_threads() const {
+    return threads.size();
+}
 
 // Wakes up main thread waiting in idle_loop() and returns immediately.
 // Main thread will wake up other threads and start the search.
@@ -284,6 +309,7 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
             th->worker->limits = limits;
             th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
               th->worker->bestMoveChanges          = 0;
+            th->worker->wins = th->worker->draws = th->worker->losses = 0;
             th->worker->rootDepth = th->worker->adjustedDepth = th->worker->completedDepth = 0;
             th->worker->rootMoves                              = rootMoves;
             th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
@@ -368,7 +394,6 @@ Thread* ThreadPool::get_best_thread() const {
 // Start non-main threads.
 // Will be invoked by main thread after it has started searching.
 void ThreadPool::start_searching() {
-
     for (auto&& th : threads)
         if (th != threads.front())
             th->start_searching();
@@ -377,13 +402,13 @@ void ThreadPool::start_searching() {
 
 // Wait for non-main threads
 void ThreadPool::wait_for_search_finished() const {
-
     for (auto&& th : threads)
         if (th != threads.front())
             th->wait_for_search_finished();
 }
 
 std::vector<size_t> ThreadPool::get_bound_thread_count_by_numa_node() const {
+
     std::vector<size_t> counts;
 
     if (!boundThreadToNumaNode.empty())

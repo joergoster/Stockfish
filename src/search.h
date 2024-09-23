@@ -310,6 +310,7 @@ class Worker {
     bool                  smartMultiPvMode;
     size_t                multiPv, pvIdx, pvLast;
     std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
+    std::atomic<uint64_t> wins, draws, losses;
     int                   selDepth, nmpMinPly;
 
     Value optimism[COLOR_NB];
