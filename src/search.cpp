@@ -1129,10 +1129,9 @@ namespace {
 
             // If we have nodes to reuse, we overwrite them
             // instead of creating new nodes.
-            if (recyclingBin.size() >= 40)
+            if (recyclingBin.size())
             {
                 recycling = true;
-                recycled++;
 
                 // Use the oldest node first
                 nextNode = recyclingBin.front();
@@ -1273,7 +1272,7 @@ namespace {
             if (!recycling)
                 nextNode++;
 
-            if (nextNode > &table[nodeCount-100] && recyclingBin.size() < 100)
+            if (nextNode > &table[nodeCount-100])
             {
                 sync_cout << "info string Running out of memory ..." << sync_endl;
 
@@ -1311,12 +1310,14 @@ namespace {
                         && childNode->get_dn() == 0)
                     {
                         recyclingBin.push(childNode);
+                        recycled++;
 
                         Node* recyclingNode = childNode->firstChild;
 
                         while (recyclingNode != rootNode)
                         {
                             recyclingBin.push(recyclingNode);
+                            recycled++;
                             recyclingNode = recyclingNode->nextSibling;
                         }
                     }
@@ -1343,12 +1344,14 @@ namespace {
                         && childNode->get_dn() == INFINITE)
                     {
                         recyclingBin.push(childNode);
+                        recycled++;
 
                         Node* recyclingNode = childNode->firstChild;
 
                         while (recyclingNode != rootNode)
                         {
                             recyclingBin.push(recyclingNode);
+                            recycled++;
                             recyclingNode = recyclingNode->nextSibling;
                         }
                     }
