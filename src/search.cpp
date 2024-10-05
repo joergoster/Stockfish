@@ -85,6 +85,7 @@ namespace {
 
   // Function prototypes
   void score_and_rank_moves(Position& pos, std::vector<RankedMove>& movelist, int ply);
+  Depth average_depth(Thread* th);
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth);
   void pn_search(Position& pos);
   Value syzygy_search(Position& pos, Stack* ss);
@@ -673,6 +674,21 @@ namespace {
   }
 
 
+  // average_depth() determines the nominal search depth to output
+  // in the Proof-Number search. We simply calculate the mean of the
+  // selective search depth of all root moves.
+
+  Depth average_depth(Thread* th) {
+      
+    Depth averageDepth = 0;
+
+    for (RootMove& rm : th->rootMoves)
+        averageDepth += rm.selDepth;
+
+    return averageDepth / int(th->rootMoves.size()) + 1;
+  }
+
+
   // search<>() is the main search function
 
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
@@ -967,11 +983,9 @@ namespace {
     Node* nextNode = rootNode + 1; // Pointer to the next node
     Node* tmpNode;
 
-    // Needed for reporting a score and depth
-    thisThread->rootDepth = targetDepth;
-
+    // Set some default values for all root moves
     for (RootMove& rm : thisThread->rootMoves)
-        rm.score = VALUE_DRAW, rm.selDepth = targetDepth;
+        rm.score = VALUE_DRAW, rm.selDepth = 1;
 
     // Save the root node.
     // 'rootNode' is used as a sentinel, because it can never
@@ -1005,7 +1019,6 @@ namespace {
 
             if (ss->ply & 1) // AND node
             {
-//                assert(currentNode->get_pn() < INFINITE);
                 assert(currentNode->get_dn() > 0);
 
                 minDN = INFINITE + 1;
@@ -1028,7 +1041,6 @@ namespace {
             else // OR node
             {
                 assert(currentNode->get_pn() > 0);
-//                assert(currentNode->get_dn() < INFINITE);
 
                 minPN = INFINITE + 1;
 
@@ -1091,6 +1103,7 @@ namespace {
         const bool andNode = (ss->ply + 1) & 1;
         bool firstMove = true;
         int movecount = 0;
+        thisThread->selDepth = ss->ply + 1;
 
         std::memset(&ss->st, 0, sizeof(StateInfo));
 
@@ -1129,7 +1142,7 @@ namespace {
 
             // If we have nodes to reuse, we overwrite them
             // instead of creating new nodes.
-            if (recyclingBin.size())
+            if (!recyclingBin.empty())
             {
                 recycling = true;
 
@@ -1272,7 +1285,7 @@ namespace {
             if (!recycling)
                 nextNode++;
 
-            if (nextNode > &table[nodeCount-100])
+            if (nextNode > &table[nodeCount-MAX_MOVES])
             {
                 sync_cout << "info string Running out of memory ..." << sync_endl;
 
@@ -1378,12 +1391,26 @@ namespace {
                     ss->pv.push_back(m);
             }
 
+            assert(ss->ply > 0);
+
+            // If we are one ply away from the root node, the current
+            // move must be the root move, to which we can now assign
+            // the current selective search depth.
+            if (ss->ply == 1)
+            {
+                RootMove& rm = *std::find(thisThread->rootMoves.begin(),
+                                          thisThread->rootMoves.end(), currentNode->action());
+
+                rm.selDepth = std::max(thisThread->selDepth, rm.selDepth);
+            }
+
             // Go back to the parent node
             pos.undo_move(currentNode->action());
 
+            assert(MoveList<LEGAL>(pos).contains(currentNode->action()));
+
             currentNode = ss->parentNode;
             ss--;
-
         }
 
         // We are back at the root!
@@ -1396,14 +1423,16 @@ namespace {
 
         // Assign the recursively built pv to the
         // corresponding root move.
-        if (updatePV)
+        if (updatePV && targetDepth > 1)
         {
             RootMove& rm = *std::find(thisThread->rootMoves.begin(),
                                       thisThread->rootMoves.end(), (ss+1)->pv.front());
 
             if (int(rm.pv.size()) < int((ss+1)->pv.size())) // Really needed?
             {
-                assert(targetDepth > 1);
+                assert(is_ok(rm.pv[0]));
+                assert(is_ok((ss+1)->pv[0]));
+                assert(rm.pv[0] == (ss+1)->pv[0]);
 
                 rm.pv.resize(1);
 
@@ -1445,6 +1474,9 @@ namespace {
         if (   Threads.stop.load()
             || giveOutput)
         {
+            // Calculate the nominal search depth
+            thisThread->rootDepth = std::min(average_depth(thisThread), targetDepth);
+
             // Only if the root is proven, we assign a mate score
             if (rootNode->get_pn() == 0)
             {
@@ -1462,8 +1494,11 @@ namespace {
                 RootMove& rm = *std::find(thisThread->rootMoves.begin(),
                                           thisThread->rootMoves.end(), rootChild->action());
 
+                assert(int(rm.pv.size()) == targetDepth);
+                assert(rm.selDepth == targetDepth);
+
                 // Assign the mate score
-                rm.score = VALUE_MATE - int(rm.pv.size());
+                rm.score = VALUE_MATE - targetDepth;
             }
 
             // Sort the root moves and update the GUI

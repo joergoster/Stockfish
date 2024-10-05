@@ -62,7 +62,7 @@ public:
   Position rootPos;
   StateInfo rootState;
   Search::RootMoves rootMoves;
-  Depth fullDepth, rootDepth, targetDepth;
+  Depth fullDepth, rootDepth, targetDepth, selDepth;
 };
 
 
