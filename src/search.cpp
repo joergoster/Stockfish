@@ -1291,6 +1291,9 @@ namespace {
 
                 Threads.stop = true;
             }
+
+            if (Threads.stop.load())
+                break;
         }
 
 
