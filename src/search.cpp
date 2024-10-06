@@ -1505,7 +1505,7 @@ namespace {
             std::stable_sort(thisThread->rootMoves.begin(), thisThread->rootMoves.end());
 
             if (!Threads.stop.load())
-                sync_cout << UCI::pv(pos, targetDepth) << sync_endl;
+                sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
         }
     }
 
