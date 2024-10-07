@@ -1504,8 +1504,13 @@ namespace {
                 rm.score = VALUE_MATE - targetDepth;
             }
 
-            // Sort the root moves and update the GUI
+            // Sort the root moves and update the GUI.
+            // First, the usual sort by score or rank.
+            // Second, sort by the selective search depth.
             std::stable_sort(thisThread->rootMoves.begin(), thisThread->rootMoves.end());
+
+            std::stable_sort(thisThread->rootMoves.begin(), thisThread->rootMoves.end(),
+                      [](const RootMove &a, const RootMove &b) { return a.selDepth > b.selDepth; });
 
             if (!Threads.stop.load())
                 sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
