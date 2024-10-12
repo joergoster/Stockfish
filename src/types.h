@@ -417,5 +417,3 @@ class Move {
 }  // namespace Stockfish
 
 #endif  // #ifndef TYPES_H_INCLUDED
-
-#include "tune.h"  // Global visibility to tuning setup

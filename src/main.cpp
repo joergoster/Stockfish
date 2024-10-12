@@ -23,7 +23,6 @@
 #include "position.h"
 #include "types.h"
 #include "uci.h"
-#include "tune.h"
 
 using namespace Stockfish;
 
@@ -35,8 +34,6 @@ int main(int argc, char* argv[]) {
     Position::init();
 
     UCIEngine uci(argc, argv);
-
-    Tune::init(uci.engine_options());
 
     uci.loop();
 

@@ -32,12 +32,7 @@ TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
 void TimeManagement::clear() {
-    availableNodes = -1;  // When in 'nodes as time' mode
-}
-
-void TimeManagement::advance_nodes_time(std::int64_t nodes) {
-    assert(useNodesTime);
-    availableNodes = std::max(int64_t(0), availableNodes - nodes);
+//    availableNodes = -1;  // When in 'nodes as time' mode
 }
 
 // Called at the beginning of the search and calculates
@@ -49,12 +44,10 @@ void TimeManagement::init(Search::LimitsType& limits,
                           int                 ply,
                           const OptionsMap&   options,
                           double&             originalTimeAdjust) {
-    TimePoint npmsec = TimePoint(options["nodestime"]);
 
     // If we have no time, we don't need to fully initialize TM.
     // startTime is used by movetime and useNodesTime is used in elapsed calls.
-    startTime    = limits.startTime;
-    useNodesTime = npmsec != 0;
+    startTime = limits.startTime;
 
     if (limits.time[us] == 0)
         return;
@@ -65,27 +58,10 @@ void TimeManagement::init(Search::LimitsType& limits,
     // maxScale is a multiplier applied to optimumTime.
     double optScale, maxScale;
 
-    // If we have to play in 'nodes as time' mode, then convert from time
-    // to nodes, and use resulting values in time management formulas.
-    // WARNING: to avoid time losses, the given npmsec (nodes per millisecond)
-    // must be much lower than the real engine speed.
-    if (useNodesTime)
-    {
-        if (availableNodes == -1)                       // Only once at game start
-            availableNodes = npmsec * limits.time[us];  // Time is in msec
-
-        // Convert from milliseconds to nodes
-        limits.time[us] = TimePoint(availableNodes);
-        limits.inc[us] *= npmsec;
-        limits.npmsec = npmsec;
-        moveOverhead *= npmsec;
-    }
-
     // These numbers are used where multiplications, divisions or comparisons
     // with constants are involved.
-    const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
-    const TimePoint scaledTime  = limits.time[us] / scaleFactor;
-    const TimePoint scaledInc   = limits.inc[us] / scaleFactor;
+    const TimePoint scaledTime = limits.time[us];
+    const TimePoint scaledInc  = limits.inc[us];
 
     // Maximum move horizon of 50 moves
     int mtg = limits.movestogo ? std::min(limits.movestogo, 50) : 50;

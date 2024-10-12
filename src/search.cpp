@@ -177,12 +177,6 @@ void Search::Worker::start_searching() {
     // Wait until all threads have finished
     threads.wait_for_search_finished();
 
-    // When playing in 'nodes as time' mode, subtract the searched nodes from
-    // the available ones before exiting.
-    if (limits.npmsec)
-        main_manager()->tm.advance_nodes_time(threads.nodes_searched()
-                                              - limits.inc[rootPos.side_to_move()]);
-
     Worker* bestThread = this;
     Skill   skill =
       Skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
@@ -1712,22 +1706,13 @@ Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
     return (reductionScale + 1274 - delta * 746 / rootDelta) / 1024 + (!i && reductionScale > 1293);
 }
 
-// elapsed() returns the time elapsed since the search started. If the
-// 'nodestime' option is enabled, it will return the count of nodes searched
-// instead. This function is called to check whether the search should be
-// stopped based on predefined thresholds like time limits or nodes searched.
-//
 // elapsed_time() returns the actual time elapsed since the start of the search.
-// This function is intended for use only when printing PV outputs, and not used
-// for making decisions within the search algorithm itself.
-TimePoint Search::Worker::elapsed() const {
-    return main_manager()->tm.elapsed([this]() { return threads.nodes_searched(); });
-}
 
-TimePoint Search::Worker::elapsed_time() const { return main_manager()->tm.elapsed_time(); }
+TimePoint Search::Worker::elapsed() const { return main_manager()->tm.elapsed_time(); }
 
 
 namespace {
+
 // Adjusts a mate or TB score from "plies to mate from the root" to
 // "plies to mate from the current position". Standard scores are unchanged.
 // The function is called before storing a value in the transposition table.
@@ -1912,7 +1897,7 @@ void SearchManager::check_time(Search::Worker& worker) {
 
     static TimePoint lastInfoTime = now();
 
-    TimePoint elapsed = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
+    TimePoint elapsed = tm.elapsed_time();
     TimePoint tick    = worker.limits.startTime + elapsed;
 
     if (tick - lastInfoTime >= 1000)
