@@ -29,7 +29,6 @@
 #include "movegen.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"
-#include "timeman.h"
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
@@ -59,7 +58,6 @@ Thread::Thread(Search::SharedState&                    sharedState,
 
     wait_for_search_finished();
 }
-
 
 // Destructor wakes up the thread in idle_loop() and waits
 // for its termination. Thread should be already waiting.
@@ -223,7 +221,6 @@ void ThreadPool::set(const NumaConfig&                           numaConfig,
     }
 }
 
-
 // Sets threadPool data to initial values
 void ThreadPool::clear() {
 
@@ -243,7 +240,6 @@ void ThreadPool::clear() {
     main_manager()->callsCnt           = 0;
     main_manager()->bestPreviousScore  = VALUE_INFINITE;
     main_manager()->originalTimeAdjust = -1;
-    main_manager()->tm.clear();
 }
 
 void ThreadPool::run_on_thread(size_t threadId, std::function<void()> f) {
@@ -390,7 +386,6 @@ Thread* ThreadPool::get_best_thread() const {
     return bestThread;
 }
 
-
 // Start non-main threads.
 // Will be invoked by main thread after it has started searching.
 void ThreadPool::start_searching() {
@@ -398,7 +393,6 @@ void ThreadPool::start_searching() {
         if (th != threads.front())
             th->start_searching();
 }
-
 
 // Wait for non-main threads
 void ThreadPool::wait_for_search_finished() const {

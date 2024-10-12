@@ -31,10 +31,6 @@ namespace Stockfish {
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
-void TimeManagement::clear() {
-//    availableNodes = -1;  // When in 'nodes as time' mode
-}
-
 // Called at the beginning of the search and calculates
 // the bounds of time allowed for the current game ply. We currently support:
 //      1) x basetime (+ z increment)

@@ -46,8 +46,6 @@ class TimeManagement {
     TimePoint maximum() const;
     TimePoint elapsed_time() const { return now() - startTime; };
 
-    void clear();
-
    private:
     TimePoint startTime;
     TimePoint optimumTime;
