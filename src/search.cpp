@@ -178,10 +178,8 @@ void Search::Worker::start_searching() {
     threads.wait_for_search_finished();
 
     Worker* bestThread = this;
-    Skill   skill =
-      Skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
-    if (int(options["MultiPV"]) == 1 && !limits.depth && !limits.mate && !skill.enabled()
+    if (int(options["MultiPV"]) == 1 && !limits.depth && !limits.mate
         && rootMoves[0].pv[0] != Move::none())
         bestThread = threads.get_best_thread()->worker.get();
 
@@ -248,15 +246,7 @@ void Search::Worker::iterative_deepening() {
     }
 
     smartMultiPvMode = options["SmartMultiPVMode"];
-    multiPv = size_t(options["MultiPV"]);
-    Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
-
-    // When playing with strength handicap enable MultiPV search that we will
-    // use behind-the-scenes to retrieve a set of possible moves.
-    if (skill.enabled())
-        multiPv = std::max(multiPv, size_t(4));
-
-    multiPv = std::min(multiPv, rootMoves.size());
+    multiPv = std::min(size_t(options["MultiPV"]), rootMoves.size());
 
     int searchAgainCounter = 0;
 
@@ -417,10 +407,6 @@ void Search::Worker::iterative_deepening() {
         if (!mainThread)
             continue;
 
-        // If the skill level is enabled and time is up, pick a sub-optimal best move
-        if (skill.enabled() && skill.time_to_pick(rootDepth))
-            skill.pick_best(rootMoves, multiPv);
-
         // Use part of the gained time from a previous stable move for the current move
         for (auto&& th : threads)
         {
@@ -479,12 +465,6 @@ void Search::Worker::iterative_deepening() {
         return;
 
     mainThread->previousTimeReduction = timeReduction;
-
-    // If the skill level is enabled, swap the best PV line with the sub-optimal one
-    if (skill.enabled())
-        std::swap(rootMoves[0],
-                  *std::find(rootMoves.begin(), rootMoves.end(),
-                             skill.best ? skill.best : skill.pick_best(rootMoves, multiPv)));
 }
 
 // Reset histories, usually before a new game
@@ -1719,7 +1699,9 @@ namespace {
 Value value_to_tt(Value v, int ply) {
 
     assert(v != VALUE_NONE);
-    return v >= VALUE_TB_WIN_IN_MAX_PLY ? v + ply : v <= VALUE_TB_LOSS_IN_MAX_PLY ? v - ply : v;
+
+    return v >= VALUE_TB_WIN_IN_MAX_PLY  ? v + ply :
+           v <= VALUE_TB_LOSS_IN_MAX_PLY ? v - ply : v;
 }
 
 
@@ -1838,7 +1820,6 @@ void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus) {
 }
 
 // Updates move sorting heuristics
-
 void update_quiet_histories(
   const Position& pos, Stack* ss, Search::Worker& workerThread, Move move, int bonus) {
 
@@ -1851,39 +1832,7 @@ void update_quiet_histories(
     workerThread.pawnHistory[pIndex][pos.moved_piece(move)][move.to_sq()] << bonus / 2;
 }
 
-}
-
-// When playing with strength handicap, choose the best move among a set of
-// RootMoves using a statistical rule dependent on 'level'. Idea by Heinz van Saanen.
-Move Skill::pick_best(const RootMoves& rootMoves, size_t multiPV) {
-    static PRNG rng(now());  // PRNG sequence should be non-deterministic
-
-    // RootMoves are already sorted by score in descending order
-    Value  topScore = rootMoves[0].score;
-    int    delta    = std::min(topScore - rootMoves[multiPV - 1].score, int(PawnValue));
-    int    maxScore = -VALUE_INFINITE;
-    double weakness = 120 - 2 * level;
-
-    // Choose best move. For each move score we add two terms, both dependent on
-    // weakness. One is deterministic and bigger for weaker levels, and one is
-    // random. Then we choose the move with the resulting highest score.
-    for (size_t i = 0; i < multiPV; ++i)
-    {
-        // This is our magic formula
-        int push = (weakness * int(topScore - rootMoves[i].score)
-                    + delta * (rng.rand<unsigned>() % int(weakness)))
-                 / 128;
-
-        if (rootMoves[i].score + push >= maxScore)
-        {
-            maxScore = rootMoves[i].score + push;
-            best     = rootMoves[i].pv[0];
-        }
-    }
-
-    return best;
-}
-
+} // namespace
 
 // Used to print debug info and, more importantly, to detect
 // when we are out of available time and thus stop the search.

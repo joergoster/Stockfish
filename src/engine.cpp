@@ -91,10 +91,6 @@ Engine::Engine(std::string path) :
     options["Move Overhead"] << Option(10, 0, 5000);
     options["UCI_AnalyseMode"] << Option(false);
     options["UCI_Chess960"] << Option(false);
-    options["UCI_LimitStrength"] << Option(false);
-    options["UCI_Elo"] << Option(Stockfish::Search::Skill::LowestElo,
-                                 Stockfish::Search::Skill::LowestElo,
-                                 Stockfish::Search::Skill::HighestElo);
     options["UCI_ShowWDL"] << Option(false);
     options["WDLfromSearch"] << Option(false);
     options["SyzygyPath"] << Option("", [](const Option& o) {
