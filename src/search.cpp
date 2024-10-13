@@ -130,10 +130,39 @@ Search::Worker::Worker(SharedState&                    sharedState,
     clear();
 }
 
+// Reset histories, usually before a new game
+void Search::Worker::clear() {
+    mainHistory.fill(0);
+    captureHistory.fill(-700);
+    pawnHistory.fill(-1188);
+    correctionHistory.fill(0);
+
+    for (bool inCheck : {false, true})
+        for (StatsType c : {NoCaptures, Captures})
+            for (auto& to : continuationHistory[inCheck][c])
+                for (auto& h : to)
+                    h->fill(-658);
+
+    for (size_t i = 1; i < reductions.size(); ++i)
+        reductions[i] = int((18.62 + std::log(size_t(options["Threads"])) / 2) * std::log(i));
+
+    refreshTable.clear(networks[numaAccessToken]);
+}
+
 void Search::Worker::ensure_network_replicated() {
     // Access once to force lazy initialization.
     // We do this because we want to avoid initialization during search.
     (void) (networks[numaAccessToken]);
+}
+
+Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
+    int reductionScale = reductions[d] * reductions[mn];
+    return (reductionScale + 1274 - delta * 746 / rootDelta) / 1024 + (!i && reductionScale > 1293);
+}
+
+// elapsed_time() returns the actual time elapsed since the start of the search.
+TimePoint Search::Worker::elapsed() const {
+    return main_manager()->tm.elapsed_time();
 }
 
 void Search::Worker::start_searching() {
@@ -465,25 +494,6 @@ void Search::Worker::iterative_deepening() {
         return;
 
     mainThread->previousTimeReduction = timeReduction;
-}
-
-// Reset histories, usually before a new game
-void Search::Worker::clear() {
-    mainHistory.fill(0);
-    captureHistory.fill(-700);
-    pawnHistory.fill(-1188);
-    correctionHistory.fill(0);
-
-    for (bool inCheck : {false, true})
-        for (StatsType c : {NoCaptures, Captures})
-            for (auto& to : continuationHistory[inCheck][c])
-                for (auto& h : to)
-                    h->fill(-658);
-
-    for (size_t i = 1; i < reductions.size(); ++i)
-        reductions[i] = int((18.62 + std::log(size_t(options["Threads"])) / 2) * std::log(i));
-
-    refreshTable.clear(networks[numaAccessToken]);
 }
 
 
@@ -1681,15 +1691,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     return bestValue;
 }
 
-Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
-    int reductionScale = reductions[d] * reductions[mn];
-    return (reductionScale + 1274 - delta * 746 / rootDelta) / 1024 + (!i && reductionScale > 1293);
-}
-
-// elapsed_time() returns the actual time elapsed since the start of the search.
-
-TimePoint Search::Worker::elapsed() const { return main_manager()->tm.elapsed_time(); }
-
 
 namespace {
 
@@ -1818,6 +1819,7 @@ void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus) {
             (*(ss - i)->continuationHistory)[pc][to] << bonus / (1 + (i == 3));
     }
 }
+
 
 // Updates move sorting heuristics
 void update_quiet_histories(
