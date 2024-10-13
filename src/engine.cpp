@@ -91,8 +91,8 @@ Engine::Engine(std::string path) :
     options["Move Overhead"] << Option(10, 0, 5000);
     options["UCI_AnalyseMode"] << Option(false);
     options["UCI_Chess960"] << Option(false);
-    options["UCI_ShowWDL"] << Option(false);
-    options["WDLfromSearch"] << Option(false);
+    options["UCI_ShowWDL"] << Option(true);
+    options["WDLfromSearch"] << Option(true);
     options["SyzygyPath"] << Option("", [](const Option& o) {
         Tablebases::init(o);
         return std::nullopt;
