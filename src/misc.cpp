@@ -97,7 +97,7 @@ class Logger {
   Tie in, out;
 
 public:
-  static void start(const std::string& fname) {
+  static void start(const string& fname) {
 
     static Logger l;
 
@@ -169,7 +169,7 @@ const std::string compiler_info() {
 /// _WIN32             Building on Windows (any)
 /// _WIN64             Building on Windows 64 bit
 
-  std::string compiler = "\nCompiled by ";
+  string compiler = "\nCompiled by ";
 
   #ifdef __clang__
      compiler += "clang++ ";
@@ -225,7 +225,7 @@ const std::string compiler_info() {
 
 
 /// Debug functions used mainly to collect run-time statistics
-static std::atomic<int64_t> hits[2], means[2];
+static atomic<int64_t> hits[2], means[2];
 
 void dbg_hit_on(bool b) { ++hits[0]; if (b) ++hits[1]; }
 void dbg_hit_on(bool c, bool b) { if (c) dbg_hit_on(b); }
@@ -246,9 +246,9 @@ void dbg_print() {
 /// Used to serialize access to std::cout to avoid multiple threads writing at
 /// the same time.
 
-std::ostream& operator<<(std::ostream& os, SyncCout sc) {
+ostream& operator<<(ostream& os, SyncCout sc) {
 
-  static std::mutex m;
+  static mutex m;
 
   if (sc == IO_LOCK)
       m.lock();
@@ -261,7 +261,7 @@ std::ostream& operator<<(std::ostream& os, SyncCout sc) {
 
 
 /// Trampoline helper to avoid moving Logger to misc.h
-void start_logger(const std::string& fname) { Logger::start(fname); }
+void start_logger(const string& fname) { Logger::start(fname); }
 
 
 /// prefetch() preloads the given address in L1/L2 cache. This is a non-blocking
@@ -349,7 +349,7 @@ int best_group(size_t idx) {
 
   free(buffer);
 
-  std::vector<int> groups;
+  vector<int> groups;
 
   // Run as many threads as possible on the same node until core limit is
   // reached, then move on filling the next node.

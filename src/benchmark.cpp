@@ -23,12 +23,13 @@
 #include <fstream>
 #include <iostream>
 #include <istream>
-// #include <vector>
+#include <string>
+#include <vector>
 
 #include "benchmark.h"
 #include "position.h"
 
-using namespace std;
+using std::string, std::vector;
 
 namespace {
 
@@ -94,7 +95,7 @@ const vector<string> Defaults = {
 /// bench 64 1 100000 default nodes -> search default positions for 100K nodes each
 /// bench 16 1 5 default perft -> run a perft 5 on default positions
 
-vector<string> setup_bench(const Position& current, istream& is) {
+vector<string> setup_bench(const Position& current, std::istream& is) {
 
   vector<string> fens, list;
   string go, token;
@@ -122,11 +123,11 @@ vector<string> setup_bench(const Position& current, istream& is) {
   else
   {
       string fen;
-      ifstream file(fenFile);
+      std::ifstream file(fenFile);
 
       if (!file.is_open())
       {
-          cerr << "Unable to open file " << fenFile << endl;
+          std::cerr << "Unable to open file " << fenFile << std::endl;
           exit(EXIT_FAILURE);
       }
 
