@@ -35,6 +35,7 @@
 
 #include "evaluate.h"
 #include "misc.h"
+#include "move.h"
 #include "movegen.h"
 #include "movepick.h"
 #include "nnue/network.h"

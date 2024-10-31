@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "move.h"
 #include "movegen.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"

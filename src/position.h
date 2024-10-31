@@ -26,6 +26,7 @@
 #include <string>
 
 #include "bitboard.h"
+#include "move.h"
 #include "nnue/nnue_accumulator.h"
 #include "nnue/nnue_architecture.h"
 #include "types.h"

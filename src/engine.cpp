@@ -30,6 +30,7 @@
 
 #include "evaluate.h"
 #include "misc.h"
+#include "move.h"
 #include "nnue/network.h"
 #include "nnue/nnue_common.h"
 #include "perft.h"

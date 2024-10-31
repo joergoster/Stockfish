@@ -24,6 +24,7 @@
 #include <tuple>
 
 #include "memory.h"
+#include "move.h"
 #include "types.h"
 
 namespace Stockfish {

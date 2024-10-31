@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "misc.h"
+#include "move.h"
 #include "movepick.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"

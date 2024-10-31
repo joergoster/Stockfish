@@ -33,6 +33,7 @@
 
 #include "bitboard.h"
 #include "misc.h"
+#include "move.h"
 #include "movegen.h"
 #include "nnue/nnue_common.h"
 #include "syzygy/tbprobe.h"

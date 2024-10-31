@@ -30,6 +30,7 @@
 
 #include "benchmark.h"
 #include "engine.h"
+#include "move.h"
 #include "movegen.h"
 #include "position.h"
 #include "score.h"

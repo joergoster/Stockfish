@@ -26,6 +26,7 @@
 
 #include "engine.h"
 #include "misc.h"
+#include "move.h"
 #include "search.h"
 
 namespace Stockfish {

@@ -22,6 +22,7 @@
 #include <initializer_list>
 
 #include "bitboard.h"
+#include "move.h"
 #include "position.h"
 
 namespace Stockfish {

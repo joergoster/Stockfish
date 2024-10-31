@@ -22,6 +22,7 @@
 #include <algorithm>  // IWYU pragma: keep
 #include <cstddef>
 
+#include "move.h"
 #include "types.h"
 
 namespace Stockfish {
