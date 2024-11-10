@@ -88,7 +88,6 @@ Engine::Engine(std::string path) :
     options["Ponder"] << Option(false);
     options["SmartMultiPVMode"] << Option(true);
     options["MultiPV"] << Option(1, 1, MAX_MOVES);
-    options["Skill Level"] << Option(20, 0, 20);
     options["Move Overhead"] << Option(10, 0, 5000);
     options["UCI_AnalyseMode"] << Option(false);
     options["UCI_Chess960"] << Option(false);
