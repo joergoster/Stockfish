@@ -19,7 +19,6 @@
 #ifndef SEARCH_H_INCLUDED
 #define SEARCH_H_INCLUDED
 
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -33,16 +32,18 @@
 
 #include "misc.h"
 #include "movepick.h"
-#include "nnue/network.h"
-#include "nnue/nnue_accumulator.h"
-#include "numa.h"
 #include "position.h"
 #include "score.h"
 #include "syzygy/tbprobe.h"
 #include "timeman.h"
 #include "types.h"
+#include "nnue/nnue_accumulator.h"
 
 namespace Stockfish {
+
+namespace Eval::NNUE {
+struct Networks;
+}
 
 // Different node types, used as a template parameter
 enum NodeType {
@@ -66,6 +67,7 @@ struct Stack {
     int             ply;
     Move            currentMove;
     Move            excludedMove;
+    Move            killers[2];
     Value           staticEval;
     int             statScore;
     int             moveCount;
@@ -131,19 +133,19 @@ struct LimitsType {
 // The UCI stores the uci options, thread pool, and transposition table.
 // This struct is used to easily forward data to the Search::Worker class.
 struct SharedState {
-    SharedState(const OptionsMap&                               optionsMap,
-                ThreadPool&                                     threadPool,
-                TranspositionTable&                             transpositionTable,
-                const LazyNumaReplicated<Eval::NNUE::Networks>& nets) :
+    SharedState(const OptionsMap&           optionsMap,
+                ThreadPool&                 threadPool,
+                TranspositionTable&         transpositionTable,
+                const Eval::NNUE::Networks& nets) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
         networks(nets) {}
 
-    const OptionsMap&                               options;
-    ThreadPool&                                     threads;
-    TranspositionTable&                             tt;
-    const LazyNumaReplicated<Eval::NNUE::Networks>& networks;
+    const OptionsMap&           options;
+    ThreadPool&                 threads;
+    TranspositionTable&         tt;
+    const Eval::NNUE::Networks& networks;
 };
 
 class Worker;
@@ -180,34 +182,6 @@ struct InfoIteration {
     size_t           currmovenumber;
 };
 
-// Skill structure is used to implement strength limit. If we have a UCI_Elo,
-// we convert it to an appropriate skill level, anchored to the Stash engine.
-// This method is based on a fit of the Elo results for games played between
-// Stockfish at various skill levels and various versions of the Stash engine.
-// Skill 0 .. 19 now covers CCRL Blitz Elo from 1320 to 3190, approximately
-// Reference: https://github.com/vondele/Stockfish/commit/a08b8d4e9711c2
-struct Skill {
-    // Lowest and highest Elo ratings used in the skill level calculation
-    constexpr static int LowestElo  = 1320;
-    constexpr static int HighestElo = 3190;
-
-    Skill(int skill_level, int uci_elo) {
-        if (uci_elo)
-        {
-            double e = double(uci_elo - LowestElo) / (HighestElo - LowestElo);
-            level = std::clamp((((37.2473 * e - 40.8525) * e + 22.2943) * e - 0.311438), 0.0, 19.0);
-        }
-        else
-            level = double(skill_level);
-    }
-    bool enabled() const { return level < 20.0; }
-    bool time_to_pick(Depth depth) const { return depth == 1 + int(level); }
-    Move pick_best(const RootMoves&, size_t multiPV);
-
-    double level;
-    Move   best = Move::none();
-};
-
 // SearchManager manages the search from the main thread. It is responsible for
 // keeping track of the time, and storing data strictly related to the main thread.
 class SearchManager: public ISearchManager {
@@ -230,13 +204,13 @@ class SearchManager: public ISearchManager {
 
     void check_time(Search::Worker& worker) override;
 
-    void pv(Search::Worker&           worker,
+    void pv(const Search::Worker&     worker,
             const ThreadPool&         threads,
             const TranspositionTable& tt,
-            Depth                     depth);
+            Depth                     depth) const;
 
     Stockfish::TimeManagement tm;
-    double                    originalTimeAdjust;
+    int                       originalPly;
     int                       callsCnt;
     std::atomic_bool          ponder;
 
@@ -262,50 +236,43 @@ class NullSearchManager: public ISearchManager {
 // of the search history, and storing data required for the search.
 class Worker {
    public:
-    Worker(SharedState&, std::unique_ptr<ISearchManager>, size_t, NumaReplicatedAccessToken);
+    Worker(SharedState&, std::unique_ptr<ISearchManager>, size_t);
 
-    // Called at instantiation to initialize reductions tables.
-    // Reset histories, usually before a new game.
+    // Called at instantiation to initialize Reductions tables
+    // Reset histories, usually before a new game
     void clear();
 
     // Called when the program receives the UCI 'go' command.
     // It searches from the root position and outputs the "bestmove".
     void start_searching();
 
-    bool is_mainthread() const { return threadIdx == 0; }
-
-    void ensure_network_replicated();
+    bool is_mainthread() const { return thread_idx == 0; }
 
     // Public because they need to be updatable by the stats
-    ButterflyHistory mainHistory;
-    LowPlyHistory    lowPlyHistory;
-
+    CounterMoveHistory    counterMoves;
+    ButterflyHistory      mainHistory;
     CapturePieceToHistory captureHistory;
     ContinuationHistory   continuationHistory[2][2];
     PawnHistory           pawnHistory;
-
-    PawnCorrectionHistory       pawnCorrectionHistory;
-    MaterialCorrectionHistory   materialCorrectionHistory;
-    MajorPieceCorrectionHistory majorPieceCorrectionHistory;
-    MinorPieceCorrectionHistory minorPieceCorrectionHistory;
-    NonPawnCorrectionHistory    nonPawnCorrectionHistory[COLOR_NB];
+    CorrectionHistory     correctionHistory;
 
    private:
     void iterative_deepening();
 
-    // This is the main search function, for both PV and non-PV nodes
+    // Main search function for both PV and non-PV nodes
     template<NodeType nodeType>
     Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
 
     // Quiescence search function, which is called by the main search
     template<NodeType nodeType>
-    Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta);
+    Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
-    Depth reduction(bool i, Depth d, int mn, int delta) const;
+    Depth reduction(bool i, Depth d, int mn, int delta);
 
-    // Pointer to the search manager, only allowed to be called by the main thread
+    // Get a pointer to the search manager, only allowed to be called by the
+    // main thread.
     SearchManager* main_manager() const {
-        assert(threadIdx == 0);
+        assert(thread_idx == 0);
         return static_cast<SearchManager*>(manager.get());
     }
 
@@ -326,21 +293,20 @@ class Worker {
     Depth     rootDepth, completedDepth;
     Value     rootDelta;
 
-    size_t                    threadIdx;
-    NumaReplicatedAccessToken numaAccessToken;
+    size_t thread_idx;
 
     // Reductions lookup table initialized at startup
-    std::array<int, MAX_MOVES> reductions;  // [depth or moveNumber]
+    std::array<int, MAX_MOVES> dreductions, mreductions;  // [depth or moveNumber]
 
     // The main thread has a SearchManager, the others have a NullSearchManager
     std::unique_ptr<ISearchManager> manager;
 
     Tablebases::Config tbConfig;
 
-    const OptionsMap&                               options;
-    ThreadPool&                                     threads;
-    TranspositionTable&                             tt;
-    const LazyNumaReplicated<Eval::NNUE::Networks>& networks;
+    const OptionsMap&           options;
+    ThreadPool&                 threads;
+    TranspositionTable&         tt;
+    const Eval::NNUE::Networks& networks;
 
     // Used by NNUE
     Eval::NNUE::AccumulatorCaches refreshTable;

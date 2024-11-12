@@ -36,11 +36,8 @@ struct LimitsType;
 // the maximum available time, the game move number, and other parameters.
 class TimeManagement {
    public:
-    void init(Search::LimitsType& limits,
-              Color               us,
-              int                 ply,
-              const OptionsMap&   options,
-              double&             originalTimeAdjust);
+    void init(
+      Search::LimitsType& limits, Color us, int ply, const OptionsMap& options, int& originalPly);
 
     TimePoint optimum() const;
     TimePoint maximum() const;

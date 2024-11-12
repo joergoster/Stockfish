@@ -36,8 +36,6 @@ bool CaseInsensitiveLess::operator()(const std::string& s1, const std::string& s
       [](char c1, char c2) { return std::tolower(c1) < std::tolower(c2); });
 }
 
-void OptionsMap::add_info_listener(InfoListener&& message_func) { info = std::move(message_func); }
-
 void OptionsMap::setoption(std::istringstream& is) {
     std::string token, name, value;
 
@@ -59,19 +57,12 @@ void OptionsMap::setoption(std::istringstream& is) {
 
 Option OptionsMap::operator[](const std::string& name) const {
     auto it = options_map.find(name);
-    return it != options_map.end() ? it->second : Option(this);
+    return it != options_map.end() ? it->second : Option();
 }
 
-Option& OptionsMap::operator[](const std::string& name) {
-    if (!options_map.count(name))
-        options_map[name] = Option(this);
-    return options_map[name];
-}
+Option& OptionsMap::operator[](const std::string& name) { return options_map[name]; }
 
 std::size_t OptionsMap::count(const std::string& name) const { return options_map.count(name); }
-
-Option::Option(const OptionsMap* map) :
-    parent(map) {}
 
 Option::Option(const char* v, OnChange f) :
     type("string"),
@@ -127,8 +118,6 @@ bool Option::operator==(const char* s) const {
     return !CaseInsensitiveLess()(currentValue, s) && !CaseInsensitiveLess()(s, currentValue);
 }
 
-bool Option::operator!=(const char* s) const { return !(*this == s); }
-
 
 // Inits options and assigns idx in the correct printing order
 
@@ -136,12 +125,10 @@ void Option::operator<<(const Option& o) {
 
     static size_t insert_order = 0;
 
-    auto p = this->parent;
-    *this  = o;
-
-    this->parent = p;
-    idx          = insert_order++;
+    *this = o;
+    idx   = insert_order++;
 }
+
 
 // Updates currentValue and triggers on_change() action. It's up to
 // the GUI to check for option's limits, but we could receive the new value
@@ -166,18 +153,11 @@ Option& Option::operator=(const std::string& v) {
             return *this;
     }
 
-    if (type == "string")
-        currentValue = v == "<empty>" ? "" : v;
-    else if (type != "button")
+    if (type != "button")
         currentValue = v;
 
     if (on_change)
-    {
-        const auto ret = on_change(*this);
-
-        if (ret && parent != nullptr && parent->info != nullptr)
-            parent->info(ret);
-    }
+        on_change(*this);
 
     return *this;
 }
@@ -190,16 +170,10 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
                 const Option& o = it.second;
                 os << "\noption name " << it.first << " type " << o.type;
 
-                if (o.type == "check" || o.type == "combo")
+                if (o.type == "string" || o.type == "check" || o.type == "combo")
                     os << " default " << o.defaultValue;
 
-                else if (o.type == "string")
-                {
-                    std::string defaultValue = o.defaultValue.empty() ? "<empty>" : o.defaultValue;
-                    os << " default " << defaultValue;
-                }
-
-                else if (o.type == "spin")
+                if (o.type == "spin")
                     os << " default " << int(stof(o.defaultValue)) << " min " << o.min << " max "
                        << o.max;
 
