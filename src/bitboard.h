@@ -67,31 +67,27 @@ extern Bitboard PawnAttacks[COLOR_NB][SQUARE_NB];
 // Magic holds all magic bitboards relevant data for a single square
 struct Magic {
     Bitboard  mask;
+    Bitboard  magic;
     Bitboard* attacks;
-#ifndef USE_PEXT
-    Bitboard magic;
-    unsigned shift;
-#endif
+    unsigned  shift;
 
     // Compute the attack's index using the 'magic bitboards' approach
     unsigned index(Bitboard occupied) const {
 
-#ifdef USE_PEXT
-        return unsigned(pext(occupied, mask));
-#else
+        if (HasPext)
+            return unsigned(pext(occupied, mask));
+
         if (Is64Bit)
             return unsigned(((occupied & mask) * magic) >> shift);
 
         unsigned lo = unsigned(occupied) & unsigned(mask);
         unsigned hi = unsigned(occupied >> 32) & unsigned(mask >> 32);
         return (lo * unsigned(magic) ^ hi * unsigned(magic >> 32)) >> shift;
-#endif
     }
-
-    Bitboard attacks_bb(Bitboard occupied) const { return attacks[index(occupied)]; }
 };
 
-extern Magic Magics[SQUARE_NB][2];
+extern Magic RookMagics[SQUARE_NB];
+extern Magic BishopMagics[SQUARE_NB];
 
 constexpr Bitboard square_bb(Square s) {
     assert(is_ok(s));
@@ -233,8 +229,9 @@ inline Bitboard attacks_bb(Square s, Bitboard occupied) {
     switch (Pt)
     {
     case BISHOP :
+        return BishopMagics[s].attacks[BishopMagics[s].index(occupied)];
     case ROOK :
-        return Magics[s][Pt - BISHOP].attacks_bb(occupied);
+        return RookMagics[s].attacks[RookMagics[s].index(occupied)];
     case QUEEN :
         return attacks_bb<BISHOP>(s, occupied) | attacks_bb<ROOK>(s, occupied);
     default :

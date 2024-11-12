@@ -34,14 +34,15 @@ Bitboard BetweenBB[SQUARE_NB][SQUARE_NB];
 Bitboard PseudoAttacks[PIECE_TYPE_NB][SQUARE_NB];
 Bitboard PawnAttacks[COLOR_NB][SQUARE_NB];
 
-alignas(64) Magic Magics[SQUARE_NB][2];
+Magic RookMagics[SQUARE_NB];
+Magic BishopMagics[SQUARE_NB];
 
 namespace {
 
 Bitboard RookTable[0x19000];   // To store rook attacks
 Bitboard BishopTable[0x1480];  // To store bishop attacks
 
-void init_magics(PieceType pt, Bitboard table[], Magic magics[][2]);
+void init_magics(PieceType pt, Bitboard table[], Magic magics[]);
 
 // Returns the bitboard of target square for the given step
 // from the given square. If the step is off the board, returns empty bitboard.
@@ -81,8 +82,8 @@ void Bitboards::init() {
         for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
             SquareDistance[s1][s2] = std::max(distance<File>(s1, s2), distance<Rank>(s1, s2));
 
-    init_magics(ROOK, RookTable, Magics);
-    init_magics(BISHOP, BishopTable, Magics);
+    init_magics(ROOK, RookTable, RookMagics);
+    init_magics(BISHOP, BishopTable, BishopMagics);
 
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
     {
@@ -139,49 +140,41 @@ Bitboard sliding_attack(PieceType pt, Square sq, Bitboard occupied) {
 
 // Computes all rook and bishop attacks at startup. Magic
 // bitboards are used to look up attacks of sliding pieces. As a reference see
-// https://www.chessprogramming.org/Magic_Bitboards. In particular, here we use
-// the so called "fancy" approach.
-void init_magics(PieceType pt, Bitboard table[], Magic magics[][2]) {
+// www.chessprogramming.org/Magic_Bitboards. In particular, here we use the so
+// called "fancy" approach.
+void init_magics(PieceType pt, Bitboard table[], Magic magics[]) {
 
-#ifndef USE_PEXT
     // Optimal PRNG seeds to pick the correct magics in the shortest time
     int seeds[][RANK_NB] = {{8977, 44560, 54343, 38998, 5731, 95205, 104912, 17020},
                             {728, 10316, 55013, 32803, 12281, 15100, 16645, 255}};
 
-    Bitboard occupancy[4096];
-    int      epoch[4096] = {}, cnt = 0;
-#endif
-    Bitboard reference[4096];
-    int      size = 0;
+    Bitboard occupancy[4096], reference[4096], edges, b;
+    int      epoch[4096] = {}, cnt = 0, size = 0;
 
     for (Square s = SQ_A1; s <= SQ_H8; ++s)
     {
         // Board edges are not considered in the relevant occupancies
-        Bitboard edges = ((Rank1BB | Rank8BB) & ~rank_bb(s)) | ((FileABB | FileHBB) & ~file_bb(s));
+        edges = ((Rank1BB | Rank8BB) & ~rank_bb(s)) | ((FileABB | FileHBB) & ~file_bb(s));
 
         // Given a square 's', the mask is the bitboard of sliding attacks from
         // 's' computed on an empty board. The index must be big enough to contain
         // all the attacks for each possible subset of the mask and so is 2 power
         // the number of 1s of the mask. Hence we deduce the size of the shift to
         // apply to the 64 or 32 bits word to get the index.
-        Magic& m = magics[s][pt - BISHOP];
+        Magic& m = magics[s];
         m.mask   = sliding_attack(pt, s, 0) & ~edges;
-#ifndef USE_PEXT
-        m.shift = (Is64Bit ? 64 : 32) - popcount(m.mask);
-#endif
+        m.shift  = (Is64Bit ? 64 : 32) - popcount(m.mask);
+
         // Set the offset for the attacks table of the square. We have individual
         // table sizes for each square with "Fancy Magic Bitboards".
-        m.attacks = s == SQ_A1 ? table : magics[s - 1][pt - BISHOP].attacks + size;
-        size      = 0;
+        m.attacks = s == SQ_A1 ? table : magics[s - 1].attacks + size;
 
         // Use Carry-Rippler trick to enumerate all subsets of masks[s] and
         // store the corresponding sliding attack bitboard in reference[].
-        Bitboard b = 0;
+        b = size = 0;
         do
         {
-#ifndef USE_PEXT
             occupancy[size] = b;
-#endif
             reference[size] = sliding_attack(pt, s, b);
 
             if (HasPext)
@@ -191,7 +184,9 @@ void init_magics(PieceType pt, Bitboard table[], Magic magics[][2]) {
             b = (b - m.mask) & m.mask;
         } while (b);
 
-#ifndef USE_PEXT
+        if (HasPext)
+            continue;
+
         PRNG rng(seeds[Is64Bit][rank_of(s)]);
 
         // Find a magic for square 's' picking up an (almost) random number
@@ -220,7 +215,6 @@ void init_magics(PieceType pt, Bitboard table[], Magic magics[][2]) {
                     break;
             }
         }
-#endif
     }
 }
 }

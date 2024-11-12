@@ -35,9 +35,8 @@
 namespace Stockfish {
 
 constexpr int PAWN_HISTORY_SIZE        = 512;    // has to be a power of 2
-constexpr int CORRECTION_HISTORY_SIZE  = 32768;  // has to be a power of 2
+constexpr int CORRECTION_HISTORY_SIZE  = 16384;  // has to be a power of 2
 constexpr int CORRECTION_HISTORY_LIMIT = 1024;
-constexpr int LOW_PLY_HISTORY_SIZE     = 4;
 
 static_assert((PAWN_HISTORY_SIZE & (PAWN_HISTORY_SIZE - 1)) == 0,
               "PAWN_HISTORY_SIZE has to be a power of 2");
@@ -53,23 +52,6 @@ enum PawnHistoryType {
 template<PawnHistoryType T = Normal>
 inline int pawn_structure_index(const Position& pos) {
     return pos.pawn_key() & ((T == Normal ? PAWN_HISTORY_SIZE : CORRECTION_HISTORY_SIZE) - 1);
-}
-
-inline int material_index(const Position& pos) {
-    return pos.material_key() & (CORRECTION_HISTORY_SIZE - 1);
-}
-
-inline int major_piece_index(const Position& pos) {
-    return pos.major_piece_key() & (CORRECTION_HISTORY_SIZE - 1);
-}
-
-inline int minor_piece_index(const Position& pos) {
-    return pos.minor_piece_key() & (CORRECTION_HISTORY_SIZE - 1);
-}
-
-template<Color c>
-inline int non_pawn_index(const Position& pos) {
-    return pos.non_pawn_key(c) & (CORRECTION_HISTORY_SIZE - 1);
 }
 
 // StatsEntry stores the stat table value. It is usually a number but could
@@ -133,12 +115,12 @@ enum StatsType {
 // ButterflyHistory records how often quiet moves have been successful or unsuccessful
 // during the current search, and is used for reduction and move ordering decisions.
 // It uses 2 tables (one for each color) indexed by the move's from and to squares,
-// see https://www.chessprogramming.org/Butterfly_Boards (~11 elo)
+// see www.chessprogramming.org/Butterfly_Boards (~11 elo)
 using ButterflyHistory = Stats<int16_t, 7183, COLOR_NB, int(SQUARE_NB) * int(SQUARE_NB)>;
 
-// LowPlyHistory is adressed by play and move's from and to squares, used
-// to improve move ordering near the root
-using LowPlyHistory = Stats<int16_t, 7183, LOW_PLY_HISTORY_SIZE, int(SQUARE_NB) * int(SQUARE_NB)>;
+// CounterMoveHistory stores counter moves indexed by [piece][to] of the previous
+// move, see www.chessprogramming.org/Countermove_Heuristic
+using CounterMoveHistory = Stats<Move, NOT_USED, PIECE_NB, SQUARE_NB>;
 
 // CapturePieceToHistory is addressed by a move's [piece][to][captured piece type]
 using CapturePieceToHistory = Stats<int16_t, 10692, PIECE_NB, SQUARE_NB, PIECE_TYPE_NB>;
@@ -155,43 +137,16 @@ using ContinuationHistory = Stats<PieceToHistory, NOT_USED, PIECE_NB, SQUARE_NB>
 // PawnHistory is addressed by the pawn structure and a move's [piece][to]
 using PawnHistory = Stats<int16_t, 8192, PAWN_HISTORY_SIZE, PIECE_NB, SQUARE_NB>;
 
-// Correction histories record differences between the static evaluation of
-// positions and their search score. It is used to improve the static evaluation
-// used by some search heuristics.
-// see https://www.chessprogramming.org/Static_Evaluation_Correction_History
-enum CorrHistType {
-    Pawn,          // By color and pawn structure
-    Major,         // By color and positions of major pieces (Queen, Rook) and King
-    Minor,         // By color and positions of minor pieces (Knight, Bishop) and King
-    NonPawn,       // By color and non-pawn material positions
-    PieceTo,       // By [piece][to] move
-    Continuation,  // Combined history of move pairs
-};
+// CorrectionHistory is addressed by color and pawn structure
+using CorrectionHistory =
+  Stats<int16_t, CORRECTION_HISTORY_LIMIT, COLOR_NB, CORRECTION_HISTORY_SIZE>;
 
-template<CorrHistType _>
-struct CorrHistTypedef {
-    using type = Stats<int16_t, CORRECTION_HISTORY_LIMIT, COLOR_NB, CORRECTION_HISTORY_SIZE>;
-};
-
-template<>
-struct CorrHistTypedef<PieceTo> {
-    using type = Stats<int16_t, CORRECTION_HISTORY_LIMIT, PIECE_NB, SQUARE_NB>;
-};
-
-template<>
-struct CorrHistTypedef<Continuation> {
-    using type = Stats<CorrHistTypedef<PieceTo>::type, NOT_USED, PIECE_NB, SQUARE_NB>;
-};
-
-template<CorrHistType T>
-using CorrectionHistory = typename CorrHistTypedef<T>::type;
-
-// The MovePicker class is used to pick one pseudo-legal move at a time from the
-// current position. The most important method is next_move(), which emits one
-// new pseudo-legal move on every call, until there are no moves left, when
-// Move::none() is returned. In order to improve the efficiency of the alpha-beta
-// algorithm, MovePicker attempts to return the moves which are most likely to get
-// a cut-off first.
+// MovePicker class is used to pick one pseudo-legal move at a time from the
+// current position. The most important method is next_move(), which returns a
+// new pseudo-legal move each time it is called, until there are no moves left,
+// when Move::none() is returned. In order to improve the efficiency of the
+// alpha-beta algorithm, MovePicker attempts to return the moves which are most
+// likely to get a cut-off first.
 class MovePicker {
 
     enum PickType {
@@ -206,14 +161,20 @@ class MovePicker {
                Move,
                Depth,
                const ButterflyHistory*,
-               const LowPlyHistory*,
                const CapturePieceToHistory*,
                const PieceToHistory**,
                const PawnHistory*,
-               int);
+               Move,
+               const Move*);
+    MovePicker(const Position&,
+               Move,
+               Depth,
+               const ButterflyHistory*,
+               const CapturePieceToHistory*,
+               const PieceToHistory**,
+               const PawnHistory*);
     MovePicker(const Position&, Move, int, const CapturePieceToHistory*);
-    Move next_move();
-    void skip_quiet_moves();
+    Move next_move(bool skipQuiets = false);
 
    private:
     template<PickType T, typename Pred>
@@ -225,18 +186,15 @@ class MovePicker {
 
     const Position&              pos;
     const ButterflyHistory*      mainHistory;
-    const LowPlyHistory*         lowPlyHistory;
     const CapturePieceToHistory* captureHistory;
     const PieceToHistory**       continuationHistory;
     const PawnHistory*           pawnHistory;
     Move                         ttMove;
-    ExtMove *                    cur, *endMoves, *endBadCaptures, *beginBadQuiets, *endBadQuiets;
-    int                          stage;
-    int                          threshold;
-    Depth                        depth;
-    int                          ply;
-    bool                         skipQuiets = false;
-    ExtMove                      moves[MAX_MOVES];
+    ExtMove refutations[3], *cur, *endMoves, *endBadCaptures, *beginBadQuiets, *endBadQuiets;
+    int     stage;
+    int     threshold;
+    Depth   depth;
+    ExtMove moves[MAX_MOVES];
 };
 
 }  // namespace Stockfish
