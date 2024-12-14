@@ -1607,12 +1607,11 @@ void MainThread::check_time() {
 
 /// UCI::pv() formats PV information according to the UCI protocol.
 
-std::string UCI::pv(const Position& pos, Depth depth, size_t idx) {
+string UCI::pv(const Position& pos, Depth depth, size_t idx) {
 
   std::stringstream ss;
   TimePoint elapsed = Limits.elapsed_time() + 1;
   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
-//  const size_t multipv = rootMoves.size();
   uint64_t nodesSearched = Threads.nodes_searched();
   uint64_t tbHits = Threads.tb_hits();
 
@@ -1621,7 +1620,7 @@ std::string UCI::pv(const Position& pos, Depth depth, size_t idx) {
 
   ss << "info"
      << " time "     << elapsed
-     << " multipv "  << 1 //i + 1
+     << " multipv "  << 1
      << " depth "    << depth
      << " seldepth " << rootMoves[idx].selDepth
      << " nodes "    << nodesSearched
