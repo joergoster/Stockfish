@@ -719,14 +719,14 @@ namespace {
         || ss->ply == MAX_PLY)
         return VALUE_ZERO;
 
-    else if (thisThread == Threads.main()) // Output some info every full minute
+    else if (thisThread == Threads.main()) // Output some info every 30 seconds
     {
         TimePoint elapsed = now();
         
-        if (elapsed - Limits.lastOutputTime >= 60000)
+        if (elapsed - Limits.lastOutputTime >= 30000)
         {
             Limits.lastOutputTime = elapsed;
-            sync_cout << UCI::pv(pos, thisThread->rootDepth) << sync_endl;
+            sync_cout << UCI::pv(pos, thisThread->rootDepth, thisThread->pvIdx) << sync_endl;
         }
     }
 
@@ -1605,33 +1605,33 @@ void MainThread::check_time() {
 }
 
 
-/// UCI::pv() formats PV information according to the UCI protocol. UCI requires
-/// that all (if any) unsearched PV lines are sent using a previous search score.
+/// UCI::pv() formats PV information according to the UCI protocol.
 
-string UCI::pv(const Position& pos, Depth depth) {
+std::string UCI::pv(const Position& pos, Depth depth, size_t idx) {
 
   std::stringstream ss;
   TimePoint elapsed = Limits.elapsed_time() + 1;
   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
+//  const size_t multipv = rootMoves.size();
   uint64_t nodesSearched = Threads.nodes_searched();
   uint64_t tbHits = Threads.tb_hits();
 
-      if (ss.rdbuf()->in_avail()) // Not at first line
-          ss << "\n";
+  if (ss.rdbuf()->in_avail()) // Not at first line
+      ss << "\n";
 
-      ss << "info"
-         << " time "     << elapsed
-         << " multipv "  << 1
-         << " depth "    << depth
-         << " seldepth " << rootMoves[0].selDepth
-         << " nodes "    << nodesSearched
-         << " nps "      << nodesSearched * 1000 / elapsed
-         << " tbhits "   << tbHits
-         << " score "    << UCI::value(rootMoves[0].score)
-         << " pv";
+  ss << "info"
+     << " time "     << elapsed
+     << " multipv "  << 1 //i + 1
+     << " depth "    << depth
+     << " seldepth " << rootMoves[idx].selDepth
+     << " nodes "    << nodesSearched
+     << " nps "      << nodesSearched * 1000 / elapsed
+     << " tbhits "   << tbHits
+     << " score "    << UCI::value(rootMoves[idx].score)
+     << " pv";
 
-      for (Move m : rootMoves[0].pv)
-          ss << " " << UCI::move(m, pos.is_chess960());
+  for (Move m : rootMoves[idx].pv)
+      ss << " " << UCI::move(m, pos.is_chess960());
 
   return ss.str();
 }
