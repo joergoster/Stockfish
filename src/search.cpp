@@ -612,8 +612,10 @@ namespace {
                 rankThisMove += oppMoves == 0 ? 4096 : -8 * oppMoves;
             }
 
+            // Bonus for advancing a pawn
             if (pos.advanced_pawn_push(m))
-                rankThisMove += 1000;
+                rankThisMove += relative_rank(us, to_sq(m)) * 400
+                              + pos.pawn_passed(us, from_sq(m)) * 800;
 
             // Bonus for the king approaching the defending king
             if (   type_of(pos.moved_piece(m)) == KING
