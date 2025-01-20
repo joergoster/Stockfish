@@ -953,9 +953,9 @@ namespace {
     std::memset(&table[0], 0, nodeCount * sizeof(Node));
 
     // A small stack
-    PnsStack stack[128], *ss = stack;
+    PnsStack stack[MAX_PLY], *ss = stack;
 
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < MAX_PLY; i++)
         (ss+i)->ply = i;
 
     ss->pv.clear();
