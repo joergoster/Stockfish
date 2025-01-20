@@ -21,6 +21,7 @@
 */
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cmath>
@@ -424,7 +425,7 @@ void Thread::search() {
       return;
   }
   
-  targetDepth = Limits.mate ? 2 * Limits.mate - 1 : MAX_PLY;
+  targetDepth = Limits.mate ? 2 * Limits.mate - 1 : MAX_PLY - 1;
   fullDepth = std::max(targetDepth - (Limits.mate > 5 ? 4 : 2), 1);
   size_t multiPV = rootMoves.size();
 
@@ -964,9 +965,12 @@ namespace {
 
     // Reuse nodes in a FIFO way
     std::queue<Node*> recyclingBin;
-    
+
+    // For saving the current PV
+    std::array<Move, MAX_PLY> currentPV;
+
     bool recycling, giveOutput, updatePV;
-    int targetDepth = std::min(2 * Limits.mate - 1, MAX_PLY-1);
+    int targetDepth = std::min(2 * Limits.mate - 1, MAX_PLY - 1);
     uint64_t iteration;
     uint32_t minPN, minDN, sumChildrenPN, sumChildrenDN;
     Thread* thisThread = pos.this_thread();
@@ -1426,24 +1430,16 @@ namespace {
         iteration++;
         bestNode = rootNode;
 
-        // Assign the recursively built pv to the
-        // corresponding root move.
+        // Save the recursively built pv
         if (updatePV && targetDepth > 1)
         {
-            RootMove& rm = *std::find(thisThread->rootMoves.begin(),
-                                      thisThread->rootMoves.end(), (ss+1)->pv.front());
+            currentPV.fill(MOVE_NONE);
+            int i = 0;
 
-            if (int(rm.pv.size()) < int((ss+1)->pv.size())) // Really needed?
+            for (auto& m : (ss+1)->pv)
             {
-                assert(is_ok(rm.pv[0]));
-                assert(is_ok((ss+1)->pv[0]));
-                assert(rm.pv[0] == (ss+1)->pv[0]);
-
-                rm.pv.resize(1);
-
-                // Append child pv
-                for (auto& m : (ss+2)->pv)
-                    rm.pv.push_back(m);
+                currentPV.at(i) = m;
+                ++i;
             }
 
             updatePV = false;
@@ -1482,7 +1478,7 @@ namespace {
             // Calculate the nominal search depth
             thisThread->rootDepth = std::min(average_depth(thisThread), targetDepth);
 
-            // Only if the root is proven, we assign a mate score
+            // Only if the root is proven, we assign the PV and a mate score
             if (rootNode->get_pn() == 0)
             {
                 Node* rootChild  = rootNode->firstChild;
@@ -1498,6 +1494,19 @@ namespace {
                 // Find the corresponding root move
                 RootMove& rm = *std::find(thisThread->rootMoves.begin(),
                                           thisThread->rootMoves.end(), rootChild->action());
+
+                assert(is_ok(rm.pv[0]));
+                assert(rm.pv[0] == currentPV.front());
+
+                rm.pv.resize(1); // Just in case
+
+                for (auto it = currentPV.begin() + 1; it < currentPV.end(); ++it)
+                {
+                    if (*it == MOVE_NONE)
+                        break;
+
+                    rm.pv.push_back(*it);
+                }
 
                 assert(int(rm.pv.size()) == targetDepth);
                 assert(rm.selDepth == targetDepth);
