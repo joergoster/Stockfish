@@ -573,23 +573,25 @@ namespace {
                          && aligned(lsb(b1), ourKing, to_sq(m)))
                     rankThisMove += 400;
             }
+            else
+            {
+                // Bonus for sliding pieces attacking the enemy king,
+                // possibly creating a pin.
+                if (   type_of(pos.moved_piece(m)) == BISHOP
+                    && PseudoAttacks[BISHOP][theirKing] & to_sq(m)
+                    && rankThisMove < 6000)
+                    rankThisMove += 200;
 
-            // Bonus for sliding pieces attacking the enemy king,
-            // possibly creating a pin.
-            if (   type_of(pos.moved_piece(m)) == BISHOP
-                && PseudoAttacks[BISHOP][theirKing] & to_sq(m)
-                && rankThisMove < 6000)
-                rankThisMove += 200;
+                else if (   type_of(pos.moved_piece(m)) == ROOK
+                         && PseudoAttacks[ROOK][theirKing] & to_sq(m)
+                         && rankThisMove < 6000)
+                    rankThisMove += 300;
 
-            else if (   type_of(pos.moved_piece(m)) == ROOK
-                     && PseudoAttacks[ROOK][theirKing] & to_sq(m)
-                     && rankThisMove < 6000)
-                rankThisMove += 300;
-
-            else if (   type_of(pos.moved_piece(m)) == QUEEN
-                     && PseudoAttacks[QUEEN][theirKing] & to_sq(m)
-                     && rankThisMove < 6000)
-                rankThisMove += 350;
+                else if (   type_of(pos.moved_piece(m)) == QUEEN
+                         && PseudoAttacks[QUEEN][theirKing] & to_sq(m)
+                         && rankThisMove < 6000)
+                    rankThisMove += 350;
+            }
         }
         else
         {
