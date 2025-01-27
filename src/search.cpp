@@ -685,12 +685,12 @@ namespace {
 
   Depth average_depth(Thread* th) {
       
-    Depth averageDepth = 0;
+    Depth totalDepth = int(th->rootMoves.size()) - 1;
 
     for (RootMove& rm : th->rootMoves)
-        averageDepth += rm.selDepth;
+        totalDepth += rm.selDepth;
 
-    return averageDepth / int(th->rootMoves.size()) + 1;
+    return totalDepth / int(th->rootMoves.size());
   }
 
 
@@ -1478,7 +1478,7 @@ namespace {
             || giveOutput)
         {
             // Calculate the nominal search depth
-            thisThread->rootDepth = std::min(average_depth(thisThread), targetDepth);
+            thisThread->rootDepth = average_depth(thisThread);
 
             // Only if the root is proven, we assign the PV and a mate score
             if (rootNode->get_pn() == 0)
