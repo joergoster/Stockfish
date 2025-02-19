@@ -3,8 +3,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2024 The Stockfish developers (see AUTHORS file)
-  Copyright (C) 2021-2024 Jörg Oster
+  Copyright (C) 2015-2025 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2021-2025 Jörg Oster
 
   Matefish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -79,6 +79,7 @@ string move(Move m, bool chess960);
 string pv(const Position& pos, Depth depth, size_t idx = 0);
 Move to_move(const Position& pos, string& str);
 
+void on_clear_hash(const Option&);
 void on_hash_size(const Option&);
 void on_logger(const Option&);
 void on_threads(const Option&);

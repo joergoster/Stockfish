@@ -3,8 +3,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2024 The Stockfish developers (see AUTHORS file)
-  Copyright (C) 2021-2024 Jörg Oster
+  Copyright (C) 2015-2025 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2021-2025 Jörg Oster
 
   Matefish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@
 #include "movegen.h"
 #include "search.h"
 #include "thread.h"
+#include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
@@ -272,9 +273,11 @@ void Search::init(Position& pos) {
   // If requested, print out the root moves and their ranking
   if (Options["RootMoveStats"])
       for (const auto& rm : searchMoves)
-          std::cout << "Root move: " << UCI::move(rm.pv[0], pos.is_chess960()) << "   Rank: " << rm.tbRank << std::endl;
+          std::cout << "Root move: " << UCI::move(rm.pv[0], pos.is_chess960())
+                    << "   Rank: " << rm.tbRank << std::endl;
   
-  // Finally, distribute the ranked root moves among all available threads
+  // Finally, distribute the ranked root moves
+  // among all available threads.
   auto it = searchMoves.begin();
 
   while (it < searchMoves.end())
@@ -299,6 +302,7 @@ void Search::clear() {
 
   Threads.main()->wait_for_search_finished();
 
+  TT.clear();
   Threads.clear();
   Tablebases::init(Options["SyzygyPath"]); // Free mapped files
 }
@@ -334,6 +338,7 @@ void MainThread::search() {
   if (Options["ProofNumberSearch"])
   {
       sync_cout << "info string Starting Proof-Number Search ..." << sync_endl;
+
       pn_search(rootPos);
   }
   else // Otherwise, start the default AB search
@@ -344,7 +349,7 @@ void MainThread::search() {
           if (th != this)
               th->start_searching();
 
-      Thread::search(); // Let's start searching!
+      Thread::search();
   }
 
   while (!Threads.stop && Limits.infinite)
@@ -702,9 +707,11 @@ namespace {
     Value bestValue, value;
     bool inCheck = !!pos.checkers();
     int moveCount;
-    bool extension;
+    bool extension, ttHit;
     Color us = pos.side_to_move();
     Thread* thisThread = pos.this_thread();
+    TTEntry* tte;
+    Key posKey = pos.key();
 
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
     assert(ss->ply > 0);
@@ -765,6 +772,18 @@ namespace {
     if (pos.is_draw(ss->ply))
         return VALUE_DRAW;
 
+    // Transposition table lookup
+    tte = nullptr, ttHit = false;
+    if (   ss->ply & 1
+        && ss->ply < thisThread->rootDepth)
+    {
+        TTEntry ttData(tte = TT.probe(posKey, ttHit));
+
+        if (   ttHit
+            && ttData.depth() >= depth)
+            return VALUE_DRAW;
+    }
+
     // Tablebase probe
     if (    TB::MaxCardinality >= pos.count<ALL_PIECES>()
         && !pos.can_castle(ANY_CASTLING))
@@ -779,7 +798,11 @@ namespace {
             if (ss->ply & 1)
             {
                 if (wdl != TB::WDLLoss && wdl != TB::WDLBlessedLoss)
+                {
+                    TT.save(posKey, MOVE_NONE, MAX_PLY - 1);
+
                     return VALUE_DRAW;
+                }
             }
             else
             {
@@ -894,7 +917,12 @@ namespace {
         {
             // Beta-cutoff?
             if (value >= beta)
+            {
+                if (ss->ply & 1)
+                    TT.save(posKey, lm.move, depth + 2 * extension); // ???
+
                 return value;
+            }
 
             bestValue = value;
 
@@ -1627,6 +1655,7 @@ string UCI::pv(const Position& pos, Depth depth, size_t idx) {
   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
   uint64_t nodesSearched = Threads.nodes_searched();
   uint64_t tbHits = Threads.tb_hits();
+  const int hashfull = elapsed > 1000 ? TT.hashfull() : 0;
 
   if (ss.rdbuf()->in_avail()) // Not at first line
       ss << "\n";
@@ -1638,6 +1667,7 @@ string UCI::pv(const Position& pos, Depth depth, size_t idx) {
      << " seldepth " << rootMoves[idx].selDepth
      << " nodes "    << nodesSearched
      << " nps "      << nodesSearched * 1000 / elapsed
+     << " hashfull " << hashfull
      << " tbhits "   << tbHits
      << " score "    << UCI::value(rootMoves[idx].score)
      << " pv";

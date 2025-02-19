@@ -3,8 +3,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2024 The Stockfish developers (see AUTHORS file)
-  Copyright (C) 2021-2024 Jörg Oster
+  Copyright (C) 2015-2025 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2021-2025 Jörg Oster
 
   Matefish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "misc.h"
 #include "search.h"
 #include "thread.h"
+#include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
@@ -38,7 +39,8 @@ UCI::OptionsMap Options; // Global object
 namespace UCI {
 
 /// 'On change' actions, triggered by an option's value change
-void on_hash_size(const Option& o) { (void)o; }
+void on_clear_hash(const Option&) { Search::clear(); }
+void on_hash_size(const Option& o) { TT.resize(o); }
 void on_logger(const Option& o) { start_logger(o); }
 void on_threads(const Option& o) { Threads.set(o); }
 void on_tb_path(const Option& o) { Tablebases::init(o); }
@@ -56,9 +58,12 @@ bool CaseInsensitiveLess::operator() (const string& s1, const string& s2) const 
 
 void init(OptionsMap& o) {
 
+  constexpr int MaxHashMB = Is64Bit ? 131072 : 2048;
+
   o["Debug Log File"]        << Option("", on_logger);
   o["Threads"]               << Option(1, 1, 64, on_threads);
-  o["Hash"]                  << Option(32, 1, 1024, on_hash_size);
+  o["Hash"]                  << Option(32, 1, MaxHashMB, on_hash_size);
+  o["Clear Hash"]            << Option(on_clear_hash);
   o["PNS Hash"]              << Option(32, 1, 32768);
   o["KingMoves"]             << Option(8, 0, 8);
   o["AllMoves"]              << Option(250, 0, 250);
