@@ -775,7 +775,8 @@ namespace {
     // Transposition table lookup
     tte = nullptr, ttHit = false;
     if (   ss->ply & 1
-        && ss->ply < thisThread->rootDepth)
+        && (   thisThread->rootDepth > thisThread->targetDepth - 4
+            || ss->ply + depth <= thisThread->rootDepth))
     {
         TTEntry ttData(tte = TT.probe(posKey, ttHit));
 
@@ -919,7 +920,7 @@ namespace {
             if (value >= beta)
             {
                 if (ss->ply & 1)
-                    TT.save(posKey, lm.move, depth + 2 * extension); // ???
+                    TT.save(posKey, lm.move, depth + 2 * extension);
 
                 return value;
             }
