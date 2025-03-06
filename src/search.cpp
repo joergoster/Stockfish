@@ -344,6 +344,7 @@ void MainThread::search() {
   else // Otherwise, start the default AB search
   {
       sync_cout << "info string Starting Alpha-Beta Search ..." << sync_endl;
+      Limits.lastOutputTime = now();
 
       for (Thread* th : Threads)
           if (th != this)
