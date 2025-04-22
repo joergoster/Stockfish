@@ -1314,6 +1314,9 @@ moves_loop:  // When in check, search starts here
             if (move == ttData.move && thisThread->rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
 
+            // Make sure PVS re-searches are done with an open window
+            beta = std::clamp(beta, alpha + 5, VALUE_INFINITE);
+
             value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
         }
 
