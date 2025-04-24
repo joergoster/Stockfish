@@ -637,7 +637,7 @@ Value Search::Worker::search(
     Key   posKey;
     Move  move, excludedMove, bestMove;
     Depth extension, newDepth;
-    Value bestValue, value, eval, maxValue, probCutBeta;
+    Value bestValue, value, eval, maxValue, probCutBeta, oldBeta;
     bool  givesCheck, improving, priorCapture, opponentWorsening;
     bool  capture, ttCapture;
     int   priorReduction = (ss - 1)->reduction;
@@ -1314,10 +1314,14 @@ moves_loop:  // When in check, search starts here
             if (move == ttData.move && thisThread->rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
 
-            // Make sure PVS re-searches are done with an open window
-            beta = std::clamp(beta, alpha + 5, VALUE_INFINITE);
+            // Avoid zero-window searches
+            oldBeta = beta;
+            beta = std::clamp(beta, alpha + 7, VALUE_INFINITE);
 
             value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+
+            // Restore original beta
+            beta = oldBeta;
         }
 
         // Step 19. Undo move
