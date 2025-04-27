@@ -1395,16 +1395,11 @@ moves_loop:  // When in check, search starts here
                 rm.score = -VALUE_INFINITE;
         }
 
-        // In case we have an alternative move equal in eval to the current bestmove,
-        // promote it to bestmove by pretending it just exceeds alpha (but not beta).
-        int inc = (value == bestValue && ss->ply + 2 >= thisThread->rootDepth
-                   && (int(nodes) & 15) == 0 && !is_win(std::abs(value) + 1));
-
-        if (value + inc > bestValue)
+        if (value > bestValue)
         {
             bestValue = value;
 
-            if (value + inc > alpha)
+            if (value > alpha)
             {
                 bestMove = move;
 
