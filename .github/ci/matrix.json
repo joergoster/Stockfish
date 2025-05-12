@@ -1,8 +1,8 @@
 {
   "config": [
     {
-      "name": "Ubuntu 20.04 GCC",
-      "os": "ubuntu-20.04",
+      "name": "Ubuntu 22.04 GCC",
+      "os": "ubuntu-22.04",
       "simple_name": "ubuntu",
       "compiler": "g++",
       "comp": "gcc",
@@ -85,12 +85,6 @@
       }
     },
     {
-      "binaries": "x86-64-avxvnni",
-      "config": {
-        "os": "macos-14"
-      }
-    },
-    {
       "binaries": "x86-64-avx512",
       "config": {
         "os": "macos-14"
@@ -106,12 +100,6 @@
       "binaries": "x86-64-vnni512",
       "config": {
         "os": "macos-14"
-      }
-    },
-    {
-      "binaries": "x86-64-avxvnni",
-      "config": {
-        "ubuntu-20.04": null
       }
     },
     {
@@ -153,7 +141,7 @@
     {
       "binaries": "apple-silicon",
       "config": {
-        "os": "ubuntu-20.04"
+        "os": "ubuntu-22.04"
       }
     }
   ]

@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2024 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -38,6 +38,8 @@ void  std_aligned_free(void* ptr);
 void* aligned_large_pages_alloc(size_t size);
 void  aligned_large_pages_free(void* mem);
 
+bool has_large_pages();
+
 // Frees memory which was placed there with placement new.
 // Works for both single objects and arrays of unknown bound.
 template<typename T, typename FREE_FUNC>
@@ -50,7 +52,6 @@ void memory_deleter(T* ptr, FREE_FUNC free_func) {
         ptr->~T();
 
     free_func(ptr);
-    return;
 }
 
 // Frees memory which was placed there with placement new.

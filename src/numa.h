@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2024 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,10 +23,12 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -581,7 +583,21 @@ class NumaConfig {
         // still no way to set thread affinity spanning multiple processor groups.
         // See https://learn.microsoft.com/en-us/windows/win32/procthread/numa-support
         // We also do this is if need to force old API for some reason.
-        if (STARTUP_USE_OLD_AFFINITY_API)
+        //
+        // 2024-08-26: It appears that we need to actually always force this behaviour.
+        // While Windows allows this to work now, such assignments have bad interaction
+        // with the scheduler - in particular it still prefers scheduling on the thread's
+        // "primary" node, even if it means scheduling SMT processors first.
+        // See https://github.com/official-stockfish/Stockfish/issues/5551
+        // See https://learn.microsoft.com/en-us/windows/win32/procthread/processor-groups
+        //
+        //     Each process is assigned a primary group at creation, and by default all
+        //     of its threads' primary group is the same. Each thread's ideal processor
+        //     is in the thread's primary group, so threads will preferentially be
+        //     scheduled to processors on their primary group, but they are able to
+        //     be scheduled to processors on any other group.
+        //
+        // used to be guarded by if (STARTUP_USE_OLD_AFFINITY_API)
         {
             NumaConfig splitCfg = empty();
 
@@ -638,7 +654,7 @@ class NumaConfig {
         NumaIndex n = 0;
         for (auto&& nodeStr : split(s, ":"))
         {
-            auto indices = indices_from_shortened_string(nodeStr);
+            auto indices = indices_from_shortened_string(std::string(nodeStr));
             if (!indices.empty())
             {
                 for (auto idx : indices)
@@ -1000,7 +1016,7 @@ class NumaConfig {
         if (s.empty())
             return indices;
 
-        for (const std::string& ss : split(s, ","))
+        for (const auto& ss : split(s, ","))
         {
             if (ss.empty())
                 continue;
@@ -1008,13 +1024,13 @@ class NumaConfig {
             auto parts = split(ss, "-");
             if (parts.size() == 1)
             {
-                const CpuIndex c = CpuIndex{str_to_size_t(parts[0])};
+                const CpuIndex c = CpuIndex{str_to_size_t(std::string(parts[0]))};
                 indices.emplace_back(c);
             }
             else if (parts.size() == 2)
             {
-                const CpuIndex cfirst = CpuIndex{str_to_size_t(parts[0])};
-                const CpuIndex clast  = CpuIndex{str_to_size_t(parts[1])};
+                const CpuIndex cfirst = CpuIndex{str_to_size_t(std::string(parts[0]))};
+                const CpuIndex clast  = CpuIndex{str_to_size_t(std::string(parts[1]))};
                 for (size_t c = cfirst; c <= clast; ++c)
                 {
                     indices.emplace_back(c);
@@ -1125,6 +1141,117 @@ class NumaReplicated: public NumaReplicatedBase {
                 cfg.execute_on_numa_node(
                   n, [this, &source]() { instances.emplace_back(std::make_unique<T>(source)); });
             }
+        }
+        else
+        {
+            assert(cfg.num_numa_nodes() == 1);
+            // We take advantage of the fact that replication is not required
+            // and reuse the source value, avoiding one copy operation.
+            instances.emplace_back(std::make_unique<T>(std::move(source)));
+        }
+    }
+};
+
+// We force boxing with a unique_ptr. If this becomes an issue due to added
+// indirection we may need to add an option for a custom boxing type.
+template<typename T>
+class LazyNumaReplicated: public NumaReplicatedBase {
+   public:
+    using ReplicatorFuncType = std::function<T(const T&)>;
+
+    LazyNumaReplicated(NumaReplicationContext& ctx) :
+        NumaReplicatedBase(ctx) {
+        prepare_replicate_from(T{});
+    }
+
+    LazyNumaReplicated(NumaReplicationContext& ctx, T&& source) :
+        NumaReplicatedBase(ctx) {
+        prepare_replicate_from(std::move(source));
+    }
+
+    LazyNumaReplicated(const LazyNumaReplicated&) = delete;
+    LazyNumaReplicated(LazyNumaReplicated&& other) noexcept :
+        NumaReplicatedBase(std::move(other)),
+        instances(std::exchange(other.instances, {})) {}
+
+    LazyNumaReplicated& operator=(const LazyNumaReplicated&) = delete;
+    LazyNumaReplicated& operator=(LazyNumaReplicated&& other) noexcept {
+        NumaReplicatedBase::operator=(*this, std::move(other));
+        instances = std::exchange(other.instances, {});
+
+        return *this;
+    }
+
+    LazyNumaReplicated& operator=(T&& source) {
+        prepare_replicate_from(std::move(source));
+
+        return *this;
+    }
+
+    ~LazyNumaReplicated() override = default;
+
+    const T& operator[](NumaReplicatedAccessToken token) const {
+        assert(token.get_numa_index() < instances.size());
+        ensure_present(token.get_numa_index());
+        return *(instances[token.get_numa_index()]);
+    }
+
+    const T& operator*() const { return *(instances[0]); }
+
+    const T* operator->() const { return instances[0].get(); }
+
+    template<typename FuncT>
+    void modify_and_replicate(FuncT&& f) {
+        auto source = std::move(instances[0]);
+        std::forward<FuncT>(f)(*source);
+        prepare_replicate_from(std::move(*source));
+    }
+
+    void on_numa_config_changed() override {
+        // Use the first one as the source. It doesn't matter which one we use,
+        // because they all must be identical, but the first one is guaranteed to exist.
+        auto source = std::move(instances[0]);
+        prepare_replicate_from(std::move(*source));
+    }
+
+   private:
+    mutable std::vector<std::unique_ptr<T>> instances;
+    mutable std::mutex                      mutex;
+
+    void ensure_present(NumaIndex idx) const {
+        assert(idx < instances.size());
+
+        if (instances[idx] != nullptr)
+            return;
+
+        assert(idx != 0);
+
+        std::unique_lock<std::mutex> lock(mutex);
+        // Check again for races.
+        if (instances[idx] != nullptr)
+            return;
+
+        const NumaConfig& cfg = get_numa_config();
+        cfg.execute_on_numa_node(
+          idx, [this, idx]() { instances[idx] = std::make_unique<T>(*instances[0]); });
+    }
+
+    void prepare_replicate_from(T&& source) {
+        instances.clear();
+
+        const NumaConfig& cfg = get_numa_config();
+        if (cfg.requires_memory_replication())
+        {
+            assert(cfg.num_numa_nodes() > 0);
+
+            // We just need to make sure the first instance is there.
+            // Note that we cannot move here as we need to reallocate the data
+            // on the correct NUMA node.
+            cfg.execute_on_numa_node(
+              0, [this, &source]() { instances.emplace_back(std::make_unique<T>(source)); });
+
+            // Prepare others for lazy init.
+            instances.resize(cfg.num_numa_nodes());
         }
         else
         {
