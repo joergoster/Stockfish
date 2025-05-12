@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2023 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,10 +26,11 @@
 #include <string>
 
 #include "bitboard.h"
-#include "nnue/nnue_accumulator.h"
 #include "types.h"
 
 namespace Stockfish {
+
+class TranspositionTable;
 
 // StateInfo struct stores information needed to restore a Position object to
 // its previous state when we retract a move. Whenever a move is made on the
@@ -40,6 +41,8 @@ struct StateInfo {
     // Copied when making a move
     Key    materialKey;
     Key    pawnKey;
+    Key    minorPieceKey;
+    Key    nonPawnKey[COLOR_NB];
     Value  nonPawnMaterial[COLOR_NB];
     int    castlingRights;
     int    rule50;
@@ -55,10 +58,6 @@ struct StateInfo {
     Bitboard   checkSquares[PIECE_TYPE_NB];
     Piece      capturedPiece;
     int        repetition;
-
-    // Used by NNUE
-    Eval::NNUE::Accumulator accumulator;
-    DirtyPiece              dirtyPiece;
 };
 
 
@@ -73,8 +72,6 @@ using StateListPtr = std::unique_ptr<std::deque<StateInfo>>;
 // pieces, side to move, hash keys, castling info, etc. Important methods are
 // do_move() and undo_move(), used by the search to update node info when
 // traversing the search tree.
-class Thread;
-
 class Position {
    public:
     static void init();
@@ -84,7 +81,7 @@ class Position {
     Position& operator=(const Position&) = delete;
 
     // FEN string input/output
-    Position&   set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
+    Position&   set(const std::string& fenStr, bool isChess960, StateInfo* si);
     Position&   set(const std::string& code, Color c, StateInfo* si);
     std::string fen() const;
 
@@ -120,6 +117,7 @@ class Position {
     // Attacks to/from a given square
     Bitboard attackers_to(Square s) const;
     Bitboard attackers_to(Square s, Bitboard occupied) const;
+    bool     attackers_to_exist(Square s, Bitboard occupied, Color c) const;
     void     update_slider_blockers(Color c) const;
     template<PieceType Pt>
     Bitboard attacks_by(Color c) const;
@@ -134,38 +132,38 @@ class Position {
     Piece captured_piece() const;
 
     // Doing and undoing moves
-    void do_move(Move m, StateInfo& newSt);
-    void do_move(Move m, StateInfo& newSt, bool givesCheck);
-    void undo_move(Move m);
-    void do_null_move(StateInfo& newSt);
-    void undo_null_move();
+    void       do_move(Move m, StateInfo& newSt, const TranspositionTable* tt);
+    DirtyPiece do_move(Move m, StateInfo& newSt, bool givesCheck, const TranspositionTable* tt);
+    void       undo_move(Move m);
+    void       do_null_move(StateInfo& newSt, const TranspositionTable& tt);
+    void       undo_null_move();
 
     // Static Exchange Evaluation
-    bool see_ge(Move m, Value threshold = VALUE_ZERO) const;
+    bool see_ge(Move m, int threshold = 0) const;
 
     // Accessing hash keys
     Key key() const;
-    Key key_after(Move m) const;
     Key material_key() const;
     Key pawn_key() const;
+    Key minor_piece_key() const;
+    Key non_pawn_key(Color c) const;
 
     // Other properties of the position
-    Color   side_to_move() const;
-    int     game_ply() const;
-    bool    is_chess960() const;
-    Thread* this_thread() const;
-    bool    is_draw(int ply) const;
-    bool    has_game_cycle(int ply) const;
-    bool    has_repeated() const;
-    int     rule50_count() const;
-    Value   non_pawn_material(Color c) const;
-    Value   non_pawn_material() const;
+    Color side_to_move() const;
+    int   game_ply() const;
+    bool  is_chess960() const;
+    bool  is_draw(int ply) const;
+    bool  is_repetition(int ply) const;
+    bool  upcoming_repetition(int ply) const;
+    bool  has_repeated() const;
+    int   rule50_count() const;
+    Value non_pawn_material(Color c) const;
+    Value non_pawn_material() const;
 
     // Position consistency check, for debugging
     bool pos_is_ok() const;
     void flip();
 
-    // Used by NNUE
     StateInfo* state() const;
 
     void put_piece(Piece pc, Square s);
@@ -180,7 +178,12 @@ class Position {
     // Other helpers
     void move_piece(Square from, Square to);
     template<bool Do>
-    void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
+    void do_castling(Color             us,
+                     Square            from,
+                     Square&           to,
+                     Square&           rfrom,
+                     Square&           rto,
+                     DirtyPiece* const dp = nullptr);
     template<bool AfterMove>
     Key adjust_key50(Key k) const;
 
@@ -192,7 +195,6 @@ class Position {
     int        castlingRightsMask[SQUARE_NB];
     Square     castlingRookSquare[CASTLING_RIGHT_NB];
     Bitboard   castlingPath[CASTLING_RIGHT_NB];
-    Thread*    thisThread;
     StateInfo* st;
     int        gamePly;
     Color      sideToMove;
@@ -210,7 +212,7 @@ inline Piece Position::piece_on(Square s) const {
 
 inline bool Position::empty(Square s) const { return piece_on(s) == NO_PIECE; }
 
-inline Piece Position::moved_piece(Move m) const { return piece_on(from_sq(m)); }
+inline Piece Position::moved_piece(Move m) const { return piece_on(m.from_sq()); }
 
 inline Bitboard Position::pieces(PieceType pt) const { return byTypeBB[pt]; }
 
@@ -252,13 +254,11 @@ inline CastlingRights Position::castling_rights(Color c) const {
 
 inline bool Position::castling_impeded(CastlingRights cr) const {
     assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-
     return pieces() & castlingPath[cr];
 }
 
 inline Square Position::castling_rook_square(CastlingRights cr) const {
     assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-
     return castlingRookSquare[cr];
 }
 
@@ -299,6 +299,10 @@ inline Key Position::pawn_key() const { return st->pawnKey; }
 
 inline Key Position::material_key() const { return st->materialKey; }
 
+inline Key Position::minor_piece_key() const { return st->minorPieceKey; }
+
+inline Key Position::non_pawn_key(Color c) const { return st->nonPawnKey[c]; }
+
 inline Value Position::non_pawn_material(Color c) const { return st->nonPawnMaterial[c]; }
 
 inline Value Position::non_pawn_material() const {
@@ -312,21 +316,19 @@ inline int Position::rule50_count() const { return st->rule50; }
 inline bool Position::is_chess960() const { return chess960; }
 
 inline bool Position::capture(Move m) const {
-    assert(is_ok(m));
-    return (!empty(to_sq(m)) && type_of(m) != CASTLING) || type_of(m) == EN_PASSANT;
+    assert(m.is_ok());
+    return (!empty(m.to_sq()) && m.type_of() != CASTLING) || m.type_of() == EN_PASSANT;
 }
 
 // Returns true if a move is generated from the capture stage, having also
-// queen promotions covered, i.e. consistency with the capture stage move generation
-// is needed to avoid the generation of duplicate moves.
+// queen promotions covered, i.e. consistency with the capture stage move
+// generation is needed to avoid the generation of duplicate moves.
 inline bool Position::capture_stage(Move m) const {
-    assert(is_ok(m));
-    return capture(m) || promotion_type(m) == QUEEN;
+    assert(m.is_ok());
+    return capture(m) || m.promotion_type() == QUEEN;
 }
 
 inline Piece Position::captured_piece() const { return st->capturedPiece; }
-
-inline Thread* Position::this_thread() const { return thisThread; }
 
 inline void Position::put_piece(Piece pc, Square s) {
 
@@ -359,7 +361,9 @@ inline void Position::move_piece(Square from, Square to) {
     board[to]   = pc;
 }
 
-inline void Position::do_move(Move m, StateInfo& newSt) { do_move(m, newSt, gives_check(m)); }
+inline void Position::do_move(Move m, StateInfo& newSt, const TranspositionTable* tt = nullptr) {
+    do_move(m, newSt, gives_check(m), tt);
+}
 
 inline StateInfo* Position::state() const { return st; }
 

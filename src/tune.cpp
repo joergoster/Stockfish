@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2023 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -21,22 +21,51 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 
-#include "uci.h"
-
-namespace Stockfish {
-enum Value : int;
-}
+#include "ucioption.h"
 
 using std::string;
 
 namespace Stockfish {
 
-bool                              Tune::update_on_last;
-const UCI::Option*                LastOption = nullptr;
-static std::map<std::string, int> TuneResults;
+bool          Tune::update_on_last;
+const Option* LastOption = nullptr;
+OptionsMap*   Tune::options;
+namespace {
+std::map<std::string, int> TuneResults;
+
+std::optional<std::string> on_tune(const Option& o) {
+
+    if (!Tune::update_on_last || LastOption == &o)
+        Tune::read_options();
+
+    return std::nullopt;
+}
+}
+
+void Tune::make_option(OptionsMap* opts, const string& n, int v, const SetRange& r) {
+
+    // Do not generate option when there is nothing to tune (ie. min = max)
+    if (r(v).first == r(v).second)
+        return;
+
+    if (TuneResults.count(n))
+        v = TuneResults[n];
+
+    opts->add(n, Option(v, r(v).first, r(v).second, on_tune));
+    LastOption = &((*opts)[n]);
+
+    // Print formatted parameters, ready to be copy-pasted in Fishtest
+    std::cout << n << ","                                  //
+              << v << ","                                  //
+              << r(v).first << ","                         //
+              << r(v).second << ","                        //
+              << (r(v).second - r(v).first) / 20.0 << ","  //
+              << "0.0020" << std::endl;
+}
 
 string Tune::next(string& names, bool pop) {
 
@@ -57,50 +86,16 @@ string Tune::next(string& names, bool pop) {
     return name;
 }
 
-static void on_tune(const UCI::Option& o) {
-
-    if (!Tune::update_on_last || LastOption == &o)
-        Tune::read_options();
-}
-
-static void make_option(const string& n, int v, const SetRange& r) {
-
-    // Do not generate option when there is nothing to tune (ie. min = max)
-    if (r(v).first == r(v).second)
-        return;
-
-    if (TuneResults.count(n))
-        v = TuneResults[n];
-
-    Options[n] << UCI::Option(v, r(v).first, r(v).second, on_tune);
-    LastOption = &Options[n];
-
-    // Print formatted parameters, ready to be copy-pasted in Fishtest
-    std::cout << n << "," << v << "," << r(v).first << "," << r(v).second << ","
-              << (r(v).second - r(v).first) / 20.0 << ","
-              << "0.0020" << std::endl;
-}
 
 template<>
 void Tune::Entry<int>::init_option() {
-    make_option(name, value, range);
+    make_option(options, name, value, range);
 }
 
 template<>
 void Tune::Entry<int>::read_option() {
-    if (Options.count(name))
-        value = int(Options[name]);
-}
-
-template<>
-void Tune::Entry<Value>::init_option() {
-    make_option(name, value, range);
-}
-
-template<>
-void Tune::Entry<Value>::read_option() {
-    if (Options.count(name))
-        value = Value(int(Options[name]));
+    if (options->count(name))
+        value = int((*options)[name]);
 }
 
 // Instead of a variable here we have a PostUpdate function: just call it
@@ -126,7 +121,6 @@ void Tune::Entry<Tune::PostUpdate>::read_option() {
 
 namespace Stockfish {
 
-void Tune::read_results() { /* ...insert your values here... */
-}
+void Tune::read_results() { /* ...insert your values here... */ }
 
 }  // namespace Stockfish

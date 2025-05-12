@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2023 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "../../bitboard.h"
 #include "../../position.h"
 #include "../../types.h"
-#include "../nnue_common.h"
+#include "../nnue_accumulator.h"
 
 namespace Stockfish::Eval::NNUE::Features {
 
@@ -49,6 +49,8 @@ void HalfKAv2_hm::append_active_indices(const Position& pos, IndexList& active) 
 // Explicit template instantiations
 template void HalfKAv2_hm::append_active_indices<WHITE>(const Position& pos, IndexList& active);
 template void HalfKAv2_hm::append_active_indices<BLACK>(const Position& pos, IndexList& active);
+template IndexType HalfKAv2_hm::make_index<WHITE>(Square s, Piece pc, Square ksq);
+template IndexType HalfKAv2_hm::make_index<BLACK>(Square s, Piece pc, Square ksq);
 
 // Get a list of indices for recently changed features
 template<Color Perspective>
@@ -75,12 +77,8 @@ template void HalfKAv2_hm::append_changed_indices<BLACK>(Square            ksq,
                                                          IndexList&        removed,
                                                          IndexList&        added);
 
-int HalfKAv2_hm::update_cost(const StateInfo* st) { return st->dirtyPiece.dirty_num; }
-
-int HalfKAv2_hm::refresh_cost(const Position& pos) { return pos.count<ALL_PIECES>(); }
-
-bool HalfKAv2_hm::requires_refresh(const StateInfo* st, Color perspective) {
-    return st->dirtyPiece.piece[0] == make_piece(perspective, KING);
+bool HalfKAv2_hm::requires_refresh(const DirtyPiece& dirtyPiece, Color perspective) {
+    return dirtyPiece.piece[0] == make_piece(perspective, KING);
 }
 
 }  // namespace Stockfish::Eval::NNUE::Features
