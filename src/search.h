@@ -247,7 +247,8 @@ class SearchManager: public ISearchManager {
     double               previousTimeReduction;
     Value                bestPreviousScore;
     Value                bestPreviousAverageScore;
-    bool                 stopOnPonderhit;
+    bool                 newPVIdx, stopOnPonderhit;
+    TimePoint            lastInfoFail, lastInfoCurrmove;
 
     size_t id;
 

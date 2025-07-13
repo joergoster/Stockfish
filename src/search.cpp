@@ -170,6 +170,7 @@ void Search::Worker::start_searching() {
 
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
                             main_manager()->originalTimeAdjust);
+    main_manager()->lastInfoFail = main_manager()->lastInfoCurrmove = now();
     tt.new_search();
 
     if (rootMoves.empty())
@@ -318,6 +319,9 @@ void Search::Worker::iterative_deepening() {
         // MultiPV loop. We perform a full root search for each PV line
         for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
         {
+            if (mainThread)
+                mainThread->newPVIdx = true;
+
             if (pvIdx == pvLast)
             {
                 pvFirst = pvLast;
@@ -372,12 +376,13 @@ void Search::Worker::iterative_deepening() {
                 if (threads.stop)
                     break;
 
-                // When failing high/low give some update before a re-search. To avoid
-                // excessive output that could hang GUIs like Fritz 19, only start
-                // at nodes > 10M (rather than depth N, which can be reached quickly)
+                // When failing high/low give some update before a re-search
                 if (mainThread && multiPV == 1 && (bestValue <= alpha || bestValue >= beta)
-                    && nodes > 10000000)
-                    main_manager()->pv(*this, threads, tt, rootDepth);
+                    && now() - mainThread->lastInfoFail > 1000)
+                {
+                    mainThread->pv(*this, threads, tt, rootDepth);
+                    mainThread->lastInfoFail = now();
+                }
 
                 // In case of failing low/high increase aspiration window and re-search,
                 // otherwise exit the loop.
@@ -403,18 +408,19 @@ void Search::Worker::iterative_deepening() {
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
-            // Sort the PV lines searched so far and update the GUI
+            // Sort the PV lines searched so far
             std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
+            // Output the just finished PV line
             if (mainThread
-                && (threads.stop || pvIdx + 1 == multiPV || nodes > 10000000)
+                && (threads.stop || pvIdx + 1 == multiPV || elapsed() > 10000)
                 // A thread that aborted search can have mated-in/TB-loss PV and
                 // score that cannot be trusted, i.e. it can be delayed or refuted
                 // if we would have had time to fully search other root-moves. Thus
                 // we suppress this output and below pick a proven score/PV for this
                 // thread (from the previous iteration).
                 && !(threads.abortedSearch && is_loss(rootMoves[0].uciScore)))
-                main_manager()->pv(*this, threads, tt, rootDepth);
+                mainThread->pv(*this, threads, tt, rootDepth);
 
             if (threads.stop)
                 break;
@@ -1022,11 +1028,27 @@ moves_loop:  // When in check, search starts here
 
         ss->moveCount = ++moveCount;
 
-        if (rootNode && is_mainthread() && nodes > 10000000)
+        if (rootNode && is_mainthread() && elapsed() > 1000)
         {
-            main_manager()->updates.onIter(
-              {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
+            // Needed for GUIs to correctly display move 1 after starting
+            // a new iteration or PV line.
+            if (main_manager()->newPVIdx && moveCount == 1)
+            {
+                main_manager()->updates.onIter(
+                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
+
+                main_manager()->newPVIdx = false;
+            }
+            else if (   pvIdx + 1 == multiPV
+                     && now() - main_manager()->lastInfoCurrmove > 200)
+            {
+                main_manager()->updates.onIter(
+                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
+
+                main_manager()->lastInfoCurrmove = now();
+            }
         }
+
         if (PvNode)
             (ss + 1)->pv = nullptr;
 
