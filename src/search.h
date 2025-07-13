@@ -247,7 +247,8 @@ class SearchManager: public ISearchManager {
     double               previousTimeReduction;
     Value                bestPreviousScore;
     Value                bestPreviousAverageScore;
-    bool                 stopOnPonderhit;
+    bool                 newPVIdx, stopOnPonderhit;
+    TimePoint            lastInfoFail, lastInfoCurrmove;
 
     size_t id;
 
@@ -327,7 +328,7 @@ class Worker {
 
     LimitsType limits;
 
-    size_t                pvIdx, pvLast;
+    size_t                multiPV, pvIdx, pvLast;
     std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
     int                   selDepth, nmpMinPly;
 
