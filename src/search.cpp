@@ -276,7 +276,8 @@ void Search::Worker::iterative_deepening() {
             mainThread->iterValue.fill(mainThread->bestPreviousScore);
     }
 
-    size_t multiPV = size_t(options["MultiPV"]);
+    smartMultiPvMode = options["SmartMultiPVMode"];
+    multiPV = size_t(options["MultiPV"]);
     Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
     // When playing with strength handicap enable MultiPV search that we will
@@ -298,10 +299,15 @@ void Search::Worker::iterative_deepening() {
         if (mainThread)
             totBestMoveChanges /= 2;
 
-        // Save the last iteration's scores before the first PV line is searched and
-        // all the move scores except the (new) PV are set to -VALUE_INFINITE.
+        // Save the last iteration's scores and reset all scores before the
+        // first PV line is searched.
         for (RootMove& rm : rootMoves)
-            rm.previousScore = rm.score;
+        {
+            rm.previousScore       = rm.score;
+
+            if (multiPV > 1 && smartMultiPvMode)
+                rm.score = rm.uciScore = -VALUE_INFINITE;
+        }
 
         size_t pvFirst = 0;
         pvLast         = 0;
@@ -352,7 +358,13 @@ void Search::Worker::iterative_deepening() {
                 // and we want to keep the same order for all the moves except the
                 // new PV that goes to the front. Note that in the case of MultiPV
                 // search the already searched PV lines are preserved.
-                std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+                if (smartMultiPvMode)
+                {
+                    if (pvIdx + 1 == multiPV)
+                        std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+                }
+                else
+                    std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
 
                 // If search has been stopped, we break immediately. Sorting is
                 // safe because RootMoves is still valid, although it refers to
@@ -987,10 +999,26 @@ moves_loop:  // When in check, search starts here
             continue;
 
         // At root obey the "searchmoves" option and skip moves not listed in Root
-        // Move List. In MultiPV mode we also skip PV moves that have been already
+        // Move List. In MultiPV mode we also skip PV moves that have already been
         // searched and those of lower "TB rank" if we are in a TB root position.
-        if (rootNode && !std::count(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast, move))
-            continue;
+        if (rootNode)
+        {
+            if (!std::count(rootMoves.begin() + pvIdx,
+                            rootMoves.begin() + pvLast, move))
+                continue;
+
+            // In SmartMultiPVMode, we search all remaining moves only after
+            // the last PV line.
+            if (   smartMultiPvMode
+                && pvIdx + 1 < multiPV
+                && move != rootMoves[pvIdx].pv[0])
+            {
+                assert(ttData.move != Move::none());
+                assert(move != ttData.move);
+
+                continue;
+            }
+        }
 
         ss->moveCount = ++moveCount;
 
@@ -1279,7 +1307,7 @@ moves_loop:  // When in check, search starts here
         // Step 20. Check for a new best move
         // Finished searching the move. If a stop occurred, the return value of
         // the search cannot be trusted, and we return immediately without updating
-        // best move, principal variation nor transposition table.
+        // best move, principal variation or transposition table.
         if (threads.stop.load(std::memory_order_relaxed))
             return VALUE_ZERO;
 
@@ -1331,7 +1359,7 @@ moves_loop:  // When in check, search starts here
                 // All other moves but the PV, are set to the lowest value: this
                 // is not a problem when sorting because the sort is stable and the
                 // move position in the list is preserved - just the PV is pushed up.
-                rm.score = -VALUE_INFINITE;
+                rm.score = rm.uciScore = -VALUE_INFINITE;
         }
 
         // In case we have an alternative move equal in eval to the current bestmove,
