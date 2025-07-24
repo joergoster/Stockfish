@@ -46,7 +46,8 @@ class UCIEngine {
     static std::string format_score(const Score& s);
     static std::string square(Square s);
     static std::string move(Move m, bool chess960);
-    static std::string wdl(Value v, const Position& pos);
+    static std::string wdl_from_value(Value v, const Position& pos);
+    static std::string wdl_from_search(const uint64_t w, const uint64_t d, const uint64_t l);
     static std::string to_lower(std::string str);
     static Move        to_move(const Position& pos, std::string str);
 

@@ -66,6 +66,12 @@ namespace {
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 
+constexpr Value DrawThreshold = 3 * PawnValue / 10;
+constexpr Value WinThreshold  = RookValue;
+
+HitsPerRootMove nodesrm;
+HitsPerRootMove wins, draws, losses;
+
 // (*Scalers):
 // The values with Scaler asterisks have proven non-linear scaling.
 // They are optimized to time controls of 180 + 1.8 and longer,
@@ -166,6 +172,19 @@ void Search::Worker::start_searching() {
     {
         iterative_deepening();
         return;
+    }
+
+    nodesrm.clear();
+    wins.clear();
+    draws.clear();
+    losses.clear();
+
+    for (RootMove& rm : rootMoves)
+    {
+        nodesrm[rm.pv[0].raw()] = 0;
+        wins[rm.pv[0].raw()] = 0;
+        draws[rm.pv[0].raw()] = 0;
+        losses[rm.pv[0].raw()] = 0;
     }
 
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
@@ -930,6 +949,7 @@ Value Search::Worker::search(
             movedPiece = pos.moved_piece(move);
 
             do_move(pos, move, st, ss);
+            nodesrm[currentRootMove.raw()]++;
 
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
@@ -993,6 +1013,15 @@ moves_loop:  // When in check, search starts here
             continue;
 
         ss->moveCount = ++moveCount;
+
+        if (rootNode)
+        {
+            assert(move != Move::none());
+            assert(std::find(rootMoves.begin(),
+                             rootMoves.end(), move) != rootMoves.end());
+
+            currentRootMove = move;
+        }
 
         if (rootNode && is_mainthread() && nodes > 10000000)
         {
@@ -1120,6 +1149,8 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
             Depth singularDepth = newDepth / 2;
 
+            assert(singularBeta > VALUE_MATED_IN_MAX_PLY);
+
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
@@ -1166,6 +1197,7 @@ moves_loop:  // When in check, search starts here
 
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck, ss);
+        nodesrm[currentRootMove.raw()]++;
 
         // Add extension to new depth
         newDepth += extension;
@@ -1462,6 +1494,20 @@ moves_loop:  // When in check, search starts here
         update_correction_history(pos, ss, *this, bonus);
     }
 
+    // Add bestValue to WDL stats if appropriate
+    if (bestValue <= -WinThreshold)
+    {
+        ss->ply % 2 == 0 ? losses[currentRootMove.raw()]++
+                         :   wins[currentRootMove.raw()]++;
+    }
+    else if (bestValue >= WinThreshold)
+    {
+        ss->ply % 2 == 0 ?   wins[currentRootMove.raw()]++
+                         : losses[currentRootMove.raw()]++;
+    }
+    else if (abs(bestValue) <= DrawThreshold)
+        draws[currentRootMove.raw()]++;
+
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
     return bestValue;
@@ -1652,6 +1698,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
         // Step 7. Make and search the move
         do_move(pos, move, st, givesCheck, ss);
+        nodesrm[currentRootMove.raw()]++;
 
         value = -qsearch<nodeType>(pos, ss + 1, -beta, -alpha);
         undo_move(pos, move);
@@ -2130,7 +2177,14 @@ void SearchManager::pv(Search::Worker&           worker,
         if (!pv.empty())
             pv.pop_back();
 
-        auto wdl   = worker.options["UCI_ShowWDL"] ? UCIEngine::wdl(v, pos) : "";
+        [[maybe_unused]] auto foundWins   = wins[rootMoves[i].pv[0].raw()].load();
+        [[maybe_unused]] auto foundDraws  = draws[rootMoves[i].pv[0].raw()].load();
+        [[maybe_unused]] auto foundLosses = losses[rootMoves[i].pv[0].raw()].load();
+
+        auto wdl   = worker.options["UCI_ShowWDL"]   ?
+                     worker.options["WDLfromSearch"] ? UCIEngine::wdl_from_search(foundWins, foundDraws, foundLosses)
+                                                     : UCIEngine::wdl_from_value(v, pos)
+                                                     : "";
         auto bound = rootMoves[i].scoreLowerbound
                      ? "lowerbound"
                      : (rootMoves[i].scoreUpperbound ? "upperbound" : "");
@@ -2151,6 +2205,7 @@ void SearchManager::pv(Search::Worker&           worker,
         info.nodes     = nodes;
         info.nps       = nodes * 1000 / time;
         info.tbHits    = tbHits;
+        info.pvnodes   = nodesrm[rootMoves[i].pv[0].raw()].load();
         info.pv        = pv;
         info.hashfull  = tt.hashfull();
 

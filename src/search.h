@@ -29,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "history.h"
@@ -109,6 +110,8 @@ struct RootMove {
 
 using RootMoves = std::vector<RootMove>;
 
+using HitsPerRootMove = std::unordered_map<std::uint16_t, std::atomic<uint64_t>>;
+
 
 // LimitsType struct stores information sent by the caller about the analysis required.
 struct LimitsType {
@@ -173,6 +176,7 @@ struct InfoFull: InfoShort {
     size_t           nodes;
     size_t           nps;
     size_t           tbHits;
+    size_t           pvnodes;
     std::string_view pv;
     int              hashfull;
 };
@@ -338,6 +342,7 @@ class Worker {
     RootMoves rootMoves;
     Depth     rootDepth, completedDepth;
     Value     rootDelta;
+    Move      currentRootMove;
 
     size_t                    threadIdx;
     NumaReplicatedAccessToken numaAccessToken;
