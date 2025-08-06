@@ -151,6 +151,7 @@ class Position {
     // Other properties of the position
     Color side_to_move() const;
     int   game_ply() const;
+    bool  ep_is_legal() const;
     bool  is_chess960() const;
     bool  is_draw(int ply) const;
     bool  is_repetition(int ply) const;
