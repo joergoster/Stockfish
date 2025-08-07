@@ -56,26 +56,14 @@ inline bool operator<(const ExtMove& f, const ExtMove& s) {
 }
 
 template<GenType>
-ExtMove* generate(const Position& pos, ExtMove* moveList);
+ExtMove* generate(const Position& pos, ExtMove* moveList, const PieceType Pt);
 
 /// The MoveList struct is a simple wrapper around generate(). It sometimes comes
 /// in handy to use this class instead of the low level generate() function.
 template<GenType T, PieceType Pt = ALL_PIECES>
 struct MoveList {
 
-  explicit MoveList(const Position& pos) : last(generate<T>(pos, moveList)) {
-
-    if (Pt != ALL_PIECES)
-    {
-        for (ExtMove* cur = moveList; cur != last; )
-        {
-            if (type_of(pos.moved_piece(cur->move)) != Pt)
-                *cur = (--last)->move;
-            else
-                ++cur;
-        }
-    }
-  }
+  explicit MoveList(const Position& pos) : last(generate<T>(pos, moveList, Pt)) {}
 
   const ExtMove* begin() const { return moveList; }
   const ExtMove* end() const { return last; }
