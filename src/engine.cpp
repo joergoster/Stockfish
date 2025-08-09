@@ -103,19 +103,9 @@ Engine::Engine(std::optional<std::string> path) :
     options.add(  //
       "MultiPV", Option(1, 1, MAX_MOVES));
 
-    options.add("Skill Level", Option(20, 0, 20));
-
     options.add("Move Overhead", Option(10, 0, 5000));
 
-    options.add("nodestime", Option(0, 0, 10000));
-
     options.add("UCI_Chess960", Option(false));
-
-    options.add("UCI_LimitStrength", Option(false));
-
-    options.add("UCI_Elo",
-                Option(Stockfish::Search::Skill::LowestElo, Stockfish::Search::Skill::LowestElo,
-                       Stockfish::Search::Skill::HighestElo));
 
     options.add("UCI_ShowWDL", Option(false));
 
