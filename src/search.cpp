@@ -334,7 +334,7 @@ void Search::Worker::iterative_deepening() {
             }
 
             // Reset UCI info selDepth for each depth and each PV line
-            selDepth = 0;
+            selDepth = 1;
 
             // Reset aspiration window starting size
             delta     = 5 + threadIdx % 8 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 9000;
