@@ -319,17 +319,4 @@ top:
 
 void MovePicker::skip_quiet_moves() { skipQuiets = true; }
 
-// this function must be called after all quiet moves and captures have been generated
-bool MovePicker::can_move_king_or_pawn() {
-    assert(stage == GOOD_QUIET || stage == BAD_QUIET || stage == EVASION);
-
-    for (const ExtMove* m = moves; m < endCur; ++m)
-    {
-        PieceType movedPieceType = type_of(pos.moved_piece(*m));
-        if ((movedPieceType == PAWN || movedPieceType == KING) && pos.legal(*m))
-            return true;
-    }
-    return false;
-}
-
 }  // namespace Stockfish
