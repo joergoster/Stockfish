@@ -56,7 +56,6 @@ enum Stages {
     QCAPTURE
 };
 
-
 // Sort moves in descending order up to and including a given limit.
 // The order of moves smaller than the limit is left unspecified.
 void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
@@ -213,7 +212,6 @@ Move MovePicker::select(Pred filter) {
 // picking the move with the highest score from a list of generated moves.
 Move MovePicker::next_move() {
 
-    constexpr int goodQuietThreshold = -14000;
 top:
     switch (stage)
     {
@@ -231,7 +229,7 @@ top:
         MoveList<CAPTURES> ml(pos);
 
         cur = endBadCaptures = moves;
-        endCur = endCaptures = score<CAPTURES>(ml);
+        endCur               = score<CAPTURES>(ml);
 
         partial_insertion_sort(cur, endCur, std::numeric_limits<int>::min());
         ++stage;
@@ -255,7 +253,7 @@ top:
         {
             MoveList<QUIETS> ml(pos);
 
-            endCur = endGenerated = score<QUIETS>(ml);
+            endCur = score<QUIETS>(ml);
 
             partial_insertion_sort(cur, endCur, -3560 * depth);
         }
@@ -264,7 +262,12 @@ top:
         [[fallthrough]];
 
     case GOOD_QUIET :
-        if (!skipQuiets && select([&]() { return cur->value > goodQuietThreshold; }))
+        if (!skipQuiets && select([&]() {
+                if (cur->value > -14000)
+                    return true;
+                *endBadQuiets++ = *cur;
+                return false;
+            }))
             return *(cur - 1);
 
         // Prepare the pointers to loop over the bad captures
@@ -278,16 +281,16 @@ top:
         if (select([]() { return true; }))
             return *(cur - 1);
 
-        // Prepare the pointers to loop over quiets again
-        cur    = endCaptures;
-        endCur = endGenerated;
+        // Prepare the pointers to loop over the bad quiets
+        cur    = endBadCaptures;
+        endCur = endBadQuiets;
 
         ++stage;
         [[fallthrough]];
 
     case BAD_QUIET :
         if (!skipQuiets)
-            return select([&]() { return cur->value <= goodQuietThreshold; });
+            return select([]() { return true; });
 
         return Move::none();
 
@@ -295,7 +298,7 @@ top:
         MoveList<EVASIONS> ml(pos);
 
         cur    = moves;
-        endCur = endGenerated = score<EVASIONS>(ml);
+        endCur = score<EVASIONS>(ml);
 
         partial_insertion_sort(cur, endCur, std::numeric_limits<int>::min());
         ++stage;
@@ -321,7 +324,7 @@ bool MovePicker::can_move_king_or_pawn() const {
     // SEE negative captures shouldn't be returned in GOOD_CAPTURE stage
     assert(stage > GOOD_CAPTURE && stage != EVASION_INIT);
 
-    for (const ExtMove* m = moves; m < endGenerated; ++m)
+    for (const ExtMove* m = moves; m < endCur; ++m)
     {
         PieceType movedPieceType = type_of(pos.moved_piece(*m));
         if ((movedPieceType == PAWN || movedPieceType == KING) && pos.legal(*m))
