@@ -33,7 +33,6 @@
 #include <string>
 #include <utility>
 
-#include "bitboard.h"
 #include "evaluate.h"
 #include "history.h"
 #include "misc.h"
@@ -1051,18 +1050,7 @@ moves_loop:  // When in check, search starts here
                 // SEE based pruning for captures and checks
                 int margin = std::clamp(157 * depth + captHist / 29, 0, 279 * depth);
                 if (!pos.see_ge(move, -margin))
-                {
-                    bool mayStalemateTrap =
-                      depth > 2 && alpha < 0 && pos.non_pawn_material(us) == PieceValue[movedPiece]
-                      && PieceValue[movedPiece] >= RookValue
-                      // it can't be stalemate if we moved a piece adjacent to the king
-                      && !(attacks_bb<KING>(pos.square<KING>(us)) & move.from_sq())
-                      && !mp.can_move_king_or_pawn();
-
-                    // avoid pruning sacrifices of our last piece for stalemate
-                    if (!mayStalemateTrap)
-                        continue;
-                }
+                    continue;
             }
             else
             {
@@ -1452,8 +1440,7 @@ moves_loop:  // When in check, search starts here
                        bestValue >= beta    ? BOUND_LOWER
                        : PvNode && bestMove ? BOUND_EXACT
                                             : BOUND_UPPER,
-                       moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), bestMove,
-                       unadjustedStaticEval, tt.generation());
+                       depth, bestMove, unadjustedStaticEval, tt.generation());
 
     // Adjust correction history
     if (!ss->inCheck && !(bestMove && pos.capture(bestMove))
@@ -1693,27 +1680,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     if (!is_decisive(bestValue) && bestValue > beta)
         bestValue = (bestValue + beta) / 2;
 
-
-    Color us = pos.side_to_move();
-    if (!ss->inCheck && !moveCount && !pos.non_pawn_material(us)
-        && type_of(pos.captured_piece()) >= ROOK)
-    {
-        if (!((us == WHITE ? shift<NORTH>(pos.pieces(us, PAWN))
-                           : shift<SOUTH>(pos.pieces(us, PAWN)))
-              & ~pos.pieces()))  // no pawn pushes available
-        {
-            pos.state()->checkersBB = Rank1BB;  // search for legal king-moves only
-            if (!MoveList<LEGAL>(pos).size())   // stalemate
-                bestValue = VALUE_DRAW;
-            pos.state()->checkersBB = 0;
-        }
-    }
-
     // Save gathered info in transposition table. The static evaluation
     // is saved as it was before adjustment by correction history.
     ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), pvHit,
-                   bestValue >= beta ? BOUND_LOWER : BOUND_UPPER, DEPTH_QS, bestMove,
-                   unadjustedStaticEval, tt.generation());
+                   bestValue >= beta ? BOUND_LOWER : BOUND_UPPER, DEPTH_QS,
+                   bestMove, unadjustedStaticEval, tt.generation());
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
