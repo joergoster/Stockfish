@@ -170,3 +170,12 @@ int TranspositionTable::hashfull() const {
 
   return cnt / ClusterSize;
 }
+
+
+/// TranspositionTable::size() returns the current size of the
+/// hashtable in megabytes.
+
+int TranspositionTable::size() const {
+
+  return clusterCount * sizeof(Cluster) / (1024 * 1024);
+}

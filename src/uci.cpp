@@ -30,6 +30,7 @@
 #include "position.h"
 #include "search.h"
 #include "thread.h"
+#include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
@@ -111,8 +112,6 @@ namespace {
     Search::LimitsType limits;
     string token;
 
-    limits.startTime = now(); // As early as possible!
-
     while (is >> token)
     {
         if (token == "searchmoves")
@@ -130,7 +129,7 @@ namespace {
     // If the user or the GUI didn't specify a mate limit,
     // e. g. by starting an infinite analysis, notify them
     // and execute a simple mate in 1 search!
-    // (A GUI may expect at least a 'bestmove' after a 'go'.
+    // (A GUI may expect at least a 'bestmove' after a 'go'.)
     if (limits.mate == 0)
     {
 		sync_cout << "info string Infinite analysis or game playing mode not supported!"
@@ -139,13 +138,26 @@ namespace {
         limits.mate = 1;
     }
 
+    // In case a Proof-Number search is requested,
+    // shrink the Hash Table to its minimum size.
+    if (Options["ProofNumberSearch"])
+        TT.resize(1);
+
+    // Restore the old size if necessary
+    else if (TT.size() != Options["Hash"])
+        TT.resize(Options["Hash"]);
+
+    // Start the timer after setting the size
+    // of the Transposition Table.
+    limits.startTime = now();
+
     Threads.start_thinking(pos, states, limits);
   }
 
 
-  // bench() is called when engine receives the "bench" command. Firstly
-  // a list of UCI commands is setup according to bench parameters, then
-  // it is run one by one printing a summary at the end.
+  // bench() is called when engine receives the "bench" command.
+  // First, a list of UCI commands is setup according to bench parameters.
+  // Second, it is run one by one printing a summary at the end.
 
   void bench(Position& pos, istream& args, StateListPtr& states) {
 

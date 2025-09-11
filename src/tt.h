@@ -26,7 +26,6 @@
 #include <cstring>   // For std::memcpy
 
 #include "memory.h"
-//#include "misc.h"
 #include "types.h"
 
 /// TTEntry struct is the 8 bytes transposition table entry, defined as below:
@@ -75,6 +74,7 @@ public:
   TTEntry* probe(const Key key, bool& found) const;
   void save(const Key key, Move m, Depth d) const;
   int hashfull() const;
+  int size() const;
   void resize(size_t mbSize);
   void clear();
 
@@ -85,8 +85,6 @@ public:
   }
 
 private:
-  friend struct TTEntry;
-
   size_t clusterCount;
   Cluster* table = nullptr;
 };
