@@ -147,6 +147,9 @@ namespace {
     else if (TT.size() != Options["Hash"])
         TT.resize(Options["Hash"]);
 
+    else if (!Options["Preserve Hash"])
+        TT.clear();
+
     // Start the timer after setting the size
     // of the Transposition Table.
     limits.startTime = now();
