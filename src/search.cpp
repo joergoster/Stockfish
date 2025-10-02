@@ -306,11 +306,12 @@ void Search::Worker::iterative_deepening() {
         if (mainThread)
             totBestMoveChanges /= 2;
 
-        // Save the last iteration's scores and reset all scores before the
-        // first PV line is searched.
+        // Save the last iteration's scores and PVs and reset all scores
+        // before the first PV line is searched.
         for (RootMove& rm : rootMoves)
         {
-            rm.previousScore       = rm.score;
+            rm.previousScore = rm.score;
+            rm.previousPv    = rm.pv;
 
             if (multiPV > 1 && smartMultiPvMode)
                 rm.score = rm.uciScore = -VALUE_INFINITE;
@@ -1331,7 +1332,15 @@ moves_loop:  // When in check, search starts here
         // the search cannot be trusted, and we return immediately without updating
         // best move, principal variation or transposition table.
         if (threads.stop.load(std::memory_order_relaxed))
+        {
+            // At root, reset scores of this PV line and all remaining
+            // root moves, as they cannot be trusted!
+            if (rootNode)
+                for (size_t i = pvIdx; i < rootMoves.size(); i++)
+                    rootMoves[i].score = -VALUE_INFINITE;
+
             return VALUE_ZERO;
+        }
 
         if (rootNode)
         {
@@ -2154,7 +2163,7 @@ void SearchManager::pv(Search::Worker&           worker,
             syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i], v);
 
         std::string pv;
-        for (Move m : rootMoves[i].pv)
+        for (Move m : (updated ? rootMoves[i].pv : rootMoves[i].previousPv))
             pv += UCIEngine::move(m, pos.is_chess960()) + " ";
 
         // Remove last whitespace

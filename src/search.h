@@ -105,6 +105,7 @@ struct RootMove {
     int               tbRank           = 0;
     Value             tbScore;
     std::vector<Move> pv;
+    std::vector<Move> previousPv;
 };
 
 using RootMoves = std::vector<RootMove>;
