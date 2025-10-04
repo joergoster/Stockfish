@@ -736,7 +736,7 @@ namespace {
     {
         TimePoint elapsed = now();
         
-        if (elapsed - Limits.lastOutputTime >= 30000)
+        if (elapsed - Limits.lastOutputTime >= 10000)
         {
             Limits.lastOutputTime = elapsed;
             sync_cout << UCI::pv(pos, thisThread->rootDepth, thisThread->pvIdx) << sync_endl;
