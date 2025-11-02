@@ -150,19 +150,19 @@ enum Bound : int8_t {
 // to be in the range (-VALUE_NONE, VALUE_NONE] and should not exceed this range.
 using Value = int;
 
-constexpr Value VALUE_ZERO     = 0;
-constexpr Value VALUE_DRAW     = 0;
-constexpr Value VALUE_NONE     = 32002;
-constexpr Value VALUE_INFINITE = 32001;
+constexpr Value VALUE_ZERO       = 0;
+constexpr Value VALUE_DRAW       = 0;
+constexpr Value VALUE_RUTAR_DRAW = 60;
+constexpr Value VALUE_MATE       = 32000;
+constexpr Value VALUE_INFINITE   = 32001;
+constexpr Value VALUE_NONE       = 32002;
 
-constexpr Value VALUE_MATE             = 32000;
 constexpr Value VALUE_MATE_IN_MAX_PLY  = VALUE_MATE - MAX_PLY;
 constexpr Value VALUE_MATED_IN_MAX_PLY = -VALUE_MATE_IN_MAX_PLY;
 
 constexpr Value VALUE_TB                 = VALUE_MATE_IN_MAX_PLY - 1;
 constexpr Value VALUE_TB_WIN_IN_MAX_PLY  = VALUE_TB - MAX_PLY;
 constexpr Value VALUE_TB_LOSS_IN_MAX_PLY = -VALUE_TB_WIN_IN_MAX_PLY;
-
 
 constexpr bool is_valid(Value value) { return value != VALUE_NONE; }
 

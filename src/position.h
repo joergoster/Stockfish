@@ -157,6 +157,7 @@ class Position {
     bool  upcoming_repetition(int ply) const;
     bool  has_repeated() const;
     int   rule50_count() const;
+    int   rutar_score(Color c) const;
     Value non_pawn_material(Color c) const;
     Value non_pawn_material() const;
 
@@ -243,6 +244,14 @@ template<PieceType Pt>
 inline Square Position::square(Color c) const {
     assert(count<Pt>(c) == 1);
     return lsb(pieces(c, Pt));
+}
+
+inline int Position::rutar_score(Color c) const {
+    return  count<PAWN  >(c)
+          + count<KNIGHT>(c) * 3
+          + count<BISHOP>(c) * 3
+          + count<ROOK  >(c) * 5
+          + count<QUEEN >(c) * 9;
 }
 
 inline Square Position::ep_square() const { return st->epSquare; }

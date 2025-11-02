@@ -121,8 +121,21 @@ void update_correction_history(const Position& pos,
     }
 }
 
+
+Value value_rutar_draw(Position& pos) {
+
+    int rutarwhite = pos.rutar_score(WHITE);
+    int rutarblack = pos.rutar_score(BLACK);
+
+    Value rutarDraw = rutarwhite > rutarblack ?  VALUE_RUTAR_DRAW :
+                      rutarwhite < rutarblack ? -VALUE_RUTAR_DRAW : VALUE_DRAW;
+
+    return pos.side_to_move() == WHITE ? rutarDraw : -rutarDraw;
+}
+
 // Add a small random component to draw evaluations to avoid 3-fold blindness
 Value value_draw(size_t nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
+
 Value value_to_tt(Value v, int ply);
 Value value_from_tt(Value v, int ply, int r50c);
 void  update_pv(Move* pv, Move move, const Move* childPv);
@@ -594,13 +607,13 @@ Value Search::Worker::search(
     depth = std::min(depth, MAX_PLY - 1);
 
     // Check if we have an upcoming move that draws by repetition
-    if (!rootNode && alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
+/*    if (!rootNode && alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
     {
         alpha = value_draw(nodes);
         if (alpha >= beta)
             return alpha;
     }
-
+*/
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
     assert(PvNode || (alpha == beta - 1));
     assert(0 < depth && depth < MAX_PLY);
@@ -640,9 +653,12 @@ Value Search::Worker::search(
     if (!rootNode)
     {
         // Step 2. Check for aborted search and immediate draw
-        if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
-            || ss->ply >= MAX_PLY)
-            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : value_draw(nodes);
+        if (threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
+            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_ZERO;
+
+        if (pos.is_draw(ss->ply))
+            return  pos.game_ply() <= 60 ? value_draw(nodes)
+                                         : value_rutar_draw(pos);
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -1380,7 +1396,10 @@ moves_loop:  // When in check, search starts here
         bestValue = (bestValue * depth + beta) / (depth + 1);
 
     if (!moveCount)
-        bestValue = excludedMove ? alpha : ss->inCheck ? mated_in(ss->ply) : VALUE_DRAW;
+        bestValue =  excludedMove ? alpha
+                   : ss->inCheck  ? mated_in(ss->ply)
+                   : pos.game_ply() <= 60 ? value_draw(nodes)
+                                          : value_rutar_draw(pos);
 
     // If there is a move that produces search value greater than alpha,
     // we update the stats of searched moves.
@@ -1475,13 +1494,13 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     assert(PvNode || (alpha == beta - 1));
 
     // Check if we have an upcoming move that draws by repetition
-    if (alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
+/*    if (alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
     {
         alpha = value_draw(nodes);
         if (alpha >= beta)
             return alpha;
     }
-
+*/
     Move      pv[MAX_PLY + 1];
     StateInfo st;
 
@@ -1507,8 +1526,12 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         selDepth = ss->ply + 1;
 
     // Step 2. Check for an immediate draw or maximum ply reached
-    if (pos.is_draw(ss->ply) || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+    if (ss->ply >= MAX_PLY)
+        return !ss->inCheck ? evaluate(pos) : VALUE_DRAW;
+
+    if (pos.is_draw(ss->ply))
+        return  pos.game_ply() <= 60 ? value_draw(nodes)
+                                     : value_rutar_draw(pos);
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
