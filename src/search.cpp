@@ -764,7 +764,7 @@ Value Search::Worker::search(
                 // Use the range VALUE_TB to VALUE_TB_WIN_IN_MAX_PLY to score
                 value = wdl < -drawScore ? -tbValue
                       : wdl > drawScore  ? tbValue
-                                         : VALUE_DRAW + 2 * wdl * drawScore;
+                                         : value_rutar_draw(pos) + 2 * wdl * drawScore;
 
                 Bound b = wdl < -drawScore ? BOUND_UPPER
                         : wdl > drawScore  ? BOUND_LOWER
