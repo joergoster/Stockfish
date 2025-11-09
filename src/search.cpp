@@ -2133,6 +2133,7 @@ void SearchManager::pv(Search::Worker&           worker,
                        Depth                     depth) {
 
     const auto nodes     = threads.nodes_searched();
+    const auto hashfull  = nodes < 1000000 ? 0 : tt.occupancy();
     auto&      rootMoves = worker.rootMoves;
     auto&      pos       = worker.rootPos;
     size_t     pvIdx     = worker.pvIdx;
@@ -2200,7 +2201,7 @@ void SearchManager::pv(Search::Worker&           worker,
         info.tbHits    = tbHits;
         info.pvnodes   = nodesrm[rootMoves[i].pv[0].raw()].load();
         info.pv        = pv;
-        info.hashfull  = tt.hashfull();
+        info.hashfull  = hashfull;
 
         updates.onUpdateFull(info);
     }

@@ -207,6 +207,18 @@ int TranspositionTable::hashfull(int maxAge) const {
 }
 
 
+// Returns an approximation of the hashtable occupation.
+// The hash is x permill full, as per UCI protocol.
+int TranspositionTable::occupancy() const {
+    int cnt = 0;
+    for (int i = 0; i < 1000; ++i)
+        for (int j = 0; j < ClusterSize; ++j)
+            cnt += table[i].entry[j].key16 != 0;
+
+    return cnt / ClusterSize;
+}
+
+
 void TranspositionTable::new_search() {
     // increment by delta to keep lower bits as is
     generation8 += GENERATION_DELTA;

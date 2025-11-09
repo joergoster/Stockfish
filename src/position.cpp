@@ -874,10 +874,6 @@ DirtyPiece Position::do_move(Move                      m,
             st->minorPieceKey ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
     }
 
-    // If en passant is impossible, then k will not change and we can prefetch earlier
-    if (tt && !checkEP)
-        prefetch(tt->first_entry(adjust_key50(k)));
-
     // Set capture piece
     st->capturedPiece = captured;
 
@@ -901,8 +897,9 @@ DirtyPiece Position::do_move(Move                      m,
 
     // Update the key with the final value
     st->key = k;
+
     if (tt)
-        prefetch(tt->first_entry(key()));
+        prefetch(tt->first_entry(st->key));
 
     // Calculate the repetition info. It is the ply distance from the previous
     // occurrence of the same position, negative in the 3-fold case, or zero
