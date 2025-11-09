@@ -983,17 +983,17 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f $(EXE) *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
 	@rm -f stockfish.profdata *.profraw
-	@rm -f stockfish.*args*
+	@rm -f *args*
 	@rm -f stockfish.*lt*
-	@rm -f stockfish.res
-	@rm -f ./-lstdc++.res
+	@rm -f *.res
+	@rm -f *.out
 
 # evaluation network (nnue)
 net:
