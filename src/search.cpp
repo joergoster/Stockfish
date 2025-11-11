@@ -340,8 +340,8 @@ void Search::Worker::iterative_deepening() {
                         break;
             }
 
-            // Reset UCI info selDepth for each depth and each PV line
-            selDepth = 0;
+            // Reset UCI info selDepth
+            selDepth = 1;
 
             // Reset aspiration window starting size
             delta     = 5 + threadIdx % 8 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 9000;
@@ -646,9 +646,9 @@ Value Search::Worker::search(
     if (is_mainthread())
         main_manager()->check_time(*this);
 
-    // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
-    if (PvNode && selDepth < ss->ply + 1)
-        selDepth = ss->ply + 1;
+    // Used to send selDepth info to GUI
+    if (PvNode)
+        selDepth = std::max(ss->ply, selDepth);
 
     if (!rootNode)
     {
@@ -1338,6 +1338,9 @@ moves_loop:  // When in check, search starts here
                 // is not a problem when sorting because the sort is stable and the
                 // move position in the list is preserved - just the PV is pushed up.
                 rm.score = -VALUE_INFINITE;
+
+            // Reset selDepth before searching the next root move
+            selDepth = 1;
         }
 
         // In case we have an alternative move equal in eval to the current bestmove,
@@ -1513,6 +1516,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // Step 1. Initialize node
     if (PvNode)
     {
+        selDepth = std::max(ss->ply, selDepth);
+
         (ss + 1)->pv = pv;
         ss->pv[0]    = Move::none();
     }
@@ -1520,10 +1525,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     bestMove    = Move::none();
     ss->inCheck = pos.checkers();
     moveCount   = 0;
-
-    // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
-    if (PvNode && selDepth < ss->ply + 1)
-        selDepth = ss->ply + 1;
 
     // Step 2. Check for an immediate draw or maximum ply reached
     if (ss->ply >= MAX_PLY)
