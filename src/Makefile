@@ -989,9 +989,9 @@ objclean:
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-	@rm -f stockfish.profdata *.profraw
-	@rm -f *args*
-	@rm -f stockfish.*lt*
+	@rm -f *.profdata *.profraw
+	@rm -f *.*args*
+	@rm -f *.*lt*
 	@rm -f *.res
 	@rm -f *.out
 
