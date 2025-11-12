@@ -899,7 +899,7 @@ DirtyPiece Position::do_move(Move                      m,
     st->key = k;
 
     if (tt)
-        prefetch(tt->first_entry(st->key));
+        prefetch(tt->first_entry(key()));
 
     // Calculate the repetition info. It is the ply distance from the previous
     // occurrence of the same position, negative in the 3-fold case, or zero
