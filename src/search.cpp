@@ -665,9 +665,17 @@ Value Search::Worker::search(
     if (!rootNode)
     {
         // Step 2. Check for aborted search and immediate draw
-        if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
-            || ss->ply >= MAX_PLY)
-            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : value_draw(nodes);
+        if (threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
+            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_ZERO;
+
+        if (!pos.count<PAWN>() && pos.non_pawn_material() <= BishopValue)
+        {
+            assert(pos.count<ALL_PIECES>() <= 3);
+            return VALUE_DRAW;
+        }
+
+        if (pos.is_draw(ss->ply))
+            return value_draw(nodes);
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -1594,9 +1602,18 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     ss->inCheck = pos.checkers();
     moveCount   = 0;
 
-    // Step 2. Check for an immediate draw or maximum ply reached
-    if (pos.is_draw(ss->ply) || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+   // Step 2. Check for an immediate draw or maximum ply reached
+    if (ss->ply >= MAX_PLY)
+        return ss->inCheck ? VALUE_ZERO : evaluate(pos);
+
+    if (!pos.count<PAWN>() && pos.non_pawn_material() <= BishopValue)
+    {
+        assert(pos.count<ALL_PIECES>() <= 3);
+        return VALUE_DRAW;
+    }
+
+    if (pos.is_draw(ss->ply))
+        return VALUE_DRAW;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
