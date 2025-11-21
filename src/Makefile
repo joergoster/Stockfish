@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-	EXE = stockfish.exe
+	EXE = stockfish-rutar.exe
 else
-	EXE = stockfish
+	EXE = stockfish-rutar
 endif
 
 ### Installation dir definitions
