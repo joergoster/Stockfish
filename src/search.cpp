@@ -656,6 +656,9 @@ Value Search::Worker::search(
         if (threads.stop.load(std::memory_order_relaxed) || ss->ply >= MAX_PLY)
             return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_ZERO;
 
+        if (pos.count<ALL_PIECES>() == 2)
+            return VALUE_DRAW;
+
         if (pos.is_draw(ss->ply))
             return  pos.game_ply() <= 60 ? value_draw(nodes)
                                          : value_rutar_draw(pos);
@@ -1529,6 +1532,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // Step 2. Check for an immediate draw or maximum ply reached
     if (ss->ply >= MAX_PLY)
         return !ss->inCheck ? evaluate(pos) : VALUE_DRAW;
+
+    if (pos.count<ALL_PIECES>() == 2)
+        return VALUE_DRAW;
 
     if (pos.is_draw(ss->ply))
         return  pos.game_ply() <= 60 ? value_draw(nodes)
