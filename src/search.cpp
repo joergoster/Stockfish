@@ -2130,7 +2130,7 @@ void SearchManager::pv(Search::Worker&           worker,
             v = VALUE_ZERO;
 
         bool tb = worker.tbConfig.rootInTB && std::abs(v) <= VALUE_TB;
-        v       = tb ? rootMoves[i].tbScore : v;
+        v       = (tb && (rootMoves[i].tbScore != VALUE_DRAW || std::abs(v) > VALUE_RUTAR_DRAW)) ? rootMoves[i].tbScore : v;
 
         bool isExact = i != pvIdx || tb || !updated;  // tablebase- and previous-scores are exact
 
