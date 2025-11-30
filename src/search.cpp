@@ -773,7 +773,7 @@ Value Search::Worker::search(
                         : wdl > drawScore  ? BOUND_LOWER
                                            : BOUND_EXACT;
 
-                if (b == BOUND_EXACT || (b == BOUND_LOWER ? value >= beta : value <= alpha))
+                if (b != BOUND_EXACT && (b == BOUND_LOWER ? value >= beta : value <= alpha))
                 {
                     ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
                                    std::min(MAX_PLY - 1, depth + 6), Move::none(), VALUE_NONE,
@@ -786,7 +786,8 @@ Value Search::Worker::search(
                 {
                     if (b == BOUND_LOWER)
                         bestValue = value, alpha = std::max(alpha, bestValue);
-                    else
+
+                    else if (b == BOUND_UPPER)
                         maxValue = value;
                 }
             }
@@ -2129,8 +2130,8 @@ void SearchManager::pv(Search::Worker&           worker,
         if (v == -VALUE_INFINITE)
             v = VALUE_ZERO;
 
-        bool tb = worker.tbConfig.rootInTB && std::abs(v) <= VALUE_TB;
-        v       = (tb && (rootMoves[i].tbScore != VALUE_DRAW || std::abs(v) > VALUE_RUTAR_DRAW)) ? rootMoves[i].tbScore : v;
+        bool tb = worker.tbConfig.rootInTB && std::abs(v) <= VALUE_TB && std::abs(v) > VALUE_RUTAR_DRAW;
+        v       = tb ? rootMoves[i].tbScore : v;
 
         bool isExact = i != pvIdx || tb || !updated;  // tablebase- and previous-scores are exact
 
