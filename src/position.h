@@ -188,7 +188,10 @@ class Position {
 
     // Other helpers
     template<bool PutPiece, bool ComputeRay = true>
-    void update_piece_threats(Piece pc, Square s, DirtyThreats* const dts);
+    void update_piece_threats(Piece               pc,
+                              Square              s,
+                              DirtyThreats* const dts,
+                              Bitboard            noRaysContaining = -1ULL);
     void move_piece(Square from, Square to, DirtyThreats* const dts = nullptr);
     template<bool Do>
     void do_castling(Color               us,
@@ -370,7 +373,7 @@ inline void Position::move_piece(Square from, Square to, DirtyThreats* const dts
     Bitboard fromTo = from | to;
 
     if (dts)
-        update_piece_threats<false>(pc, from, dts);
+        update_piece_threats<false>(pc, from, dts, fromTo);
 
     byTypeBB[ALL_PIECES] ^= fromTo;
     byTypeBB[type_of(pc)] ^= fromTo;
@@ -379,7 +382,7 @@ inline void Position::move_piece(Square from, Square to, DirtyThreats* const dts
     board[to]   = pc;
 
     if (dts)
-        update_piece_threats<true>(pc, to, dts);
+        update_piece_threats<true>(pc, to, dts, fromTo);
 }
 
 inline void Position::swap_piece(Square s, Piece pc, DirtyThreats* const dts) {
