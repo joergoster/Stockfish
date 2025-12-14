@@ -889,7 +889,7 @@ Value Search::Worker::search(
     // Step 7. Razoring
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
-    if (!PvNode && eval < alpha - 485 - 281 * depth * depth)
+    if (!PvNode && rootDepth > 2 && eval < alpha - 485 - 281 * depth * depth)
         return qsearch<NonPV>(pos, ss, alpha, beta);
 
     // Step 8. Futility pruning: child node
@@ -904,14 +904,16 @@ Value Search::Worker::search(
                  + std::abs(correctionValue) / 174665;
         };
 
-        if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
+        if (!ss->ttPv && rootDepth > 2 && depth < 14
+            && eval - futility_margin(depth) >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
             return (2 * beta + eval) / 3;
     }
 
     // Step 9. Null move search with verification search
-    if (cutNode && ss->staticEval >= beta - 18 * depth + 350 && !excludedMove
-        && pos.non_pawn_material(us) && ss->ply >= nmpMinPly && !is_loss(beta))
+    if (cutNode && !excludedMove && ss->staticEval >= beta - 18 * depth + 350
+        && rootDepth > 2 && ss->ply >= nmpMinPly && !is_loss(beta)
+        && pos.non_pawn_material(us))
     {
         assert((ss - 1)->currentMove != Move::null());
 
@@ -956,7 +958,7 @@ Value Search::Worker::search(
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
     probCutBeta = beta + 235 - 63 * improving;
-    if (depth >= 3
+    if (depth >= 3 && rootDepth > 2
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
         // probCut there
@@ -1110,7 +1112,8 @@ moves_loop:  // When in check, search starts here
 
         // Step 14. Pruning at shallow depths.
         // Depth conditions are important for mate finding.
-        if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
+        if (!rootNode && rootDepth > 4
+            && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
             if (moveCount >= (3 + depth * depth) / (2 - improving))
