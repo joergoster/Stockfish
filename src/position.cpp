@@ -1064,10 +1064,10 @@ void write_multiple_dirties(const Position& p,
 #endif
 
 template<bool PutPiece, bool ComputeRay>
-void Position::update_piece_threats(Piece               pc,
-                                    Square              s,
-                                    DirtyThreats* const dts,
-                                    Bitboard            noRaysContaining) {
+void Position::update_piece_threats(Piece                     pc,
+                                    Square                    s,
+                                    DirtyThreats* const       dts,
+                                    [[maybe_unused]] Bitboard noRaysContaining) const {
     const Bitboard occupied     = pieces();
     const Bitboard rookQueens   = pieces(ROOK, QUEEN);
     const Bitboard bishopQueens = pieces(BISHOP, QUEEN);
@@ -1079,35 +1079,8 @@ void Position::update_piece_threats(Piece               pc,
     const Bitboard rAttacks = attacks_bb<ROOK>(s, occupied);
     const Bitboard bAttacks = attacks_bb<BISHOP>(s, occupied);
 
-    Bitboard qAttacks = Bitboard(0);
-    if constexpr (ComputeRay)
-        qAttacks = rAttacks | bAttacks;
-    else if (type_of(pc) == QUEEN)
-        qAttacks = rAttacks | bAttacks;
-
-    Bitboard threatened;
-
-    switch (type_of(pc))
-    {
-    case PAWN :
-        threatened = PseudoAttacks[color_of(pc)][s];
-        break;
-    case BISHOP :
-        threatened = bAttacks;
-        break;
-    case ROOK :
-        threatened = rAttacks;
-        break;
-    case QUEEN :
-        threatened = qAttacks;
-        break;
-
-    default :
-        threatened = PseudoAttacks[type_of(pc)][s];
-    }
-
-    threatened &= occupied;
-    Bitboard sliders = (rookQueens & rAttacks) | (bishopQueens & bAttacks);
+    Bitboard threatened = attacks_bb(pc, s, occupied) & occupied;
+    Bitboard sliders    = (rookQueens & rAttacks) | (bishopQueens & bAttacks);
     Bitboard incoming_threats =
       (PseudoAttacks[KNIGHT][s] & knights) | (attacks_bb<PAWN>(s, WHITE) & blackPawns)
       | (attacks_bb<PAWN>(s, BLACK) & whitePawns) | (PseudoAttacks[KING][s] & kings);
@@ -1160,7 +1133,7 @@ void Position::update_piece_threats(Piece               pc,
             Piece  slider   = piece_on(sliderSq);
 
             const Bitboard ray        = RayPassBB[sliderSq][s] & ~BetweenBB[sliderSq][s];
-            const Bitboard discovered = ray & qAttacks & occupied;
+            const Bitboard discovered = ray & (rAttacks | bAttacks) & occupied;
 
             assert(!more_than_one(discovered));
             if (discovered && (RayPassBB[sliderSq][s] & noRaysContaining) != noRaysContaining)
@@ -1223,8 +1196,6 @@ void Position::do_castling(Color               us,
     // Remove both pieces first since squares could overlap in Chess960
     remove_piece(Do ? from : to, dts);
     remove_piece(Do ? rfrom : rto, dts);
-    board[Do ? from : to] = board[Do ? rfrom : rto] =
-      NO_PIECE;  // remove_piece does not do this for us
     put_piece(make_piece(us, KING), Do ? to : from, dts);
     put_piece(make_piece(us, ROOK), Do ? rto : rfrom, dts);
 }
