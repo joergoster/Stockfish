@@ -276,19 +276,30 @@ void Search::init(Position& pos) {
           std::cout << "Root move: " << UCI::move(rm.pv[0], pos.is_chess960())
                     << "   Rank: " << rm.tbRank << std::endl;
   
-  // Finally, distribute the ranked root moves
-  // among all available threads.
-  auto it = searchMoves.begin();
+  // Finally, distribute the ranked root moves among all available threads.
+  // Since the PN search utilizes only one thread by default, we simply copy
+  // all moves to the main thread.
 
-  while (it < searchMoves.end())
+  assert(Threads.size() >= 1);
+
+  if (Options["ProofNumberSearch"])
   {
-      for (Thread* th : Threads)
-      {
-          th->rootMoves.emplace_back(*it);
-          it++;
+      Threads.front()->rootMoves = searchMoves;
+  }
+  else
+  {
+      auto it = searchMoves.begin();
 
-          if (it == searchMoves.end())
-              break;
+      while (it < searchMoves.end())
+      {
+          for (Thread* th : Threads)
+          {
+              th->rootMoves.emplace_back(*it);
+              it++;
+
+              if (it == searchMoves.end())
+                  break;
+          }
       }
   }
 
