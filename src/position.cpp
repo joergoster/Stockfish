@@ -269,14 +269,16 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     if (((ss >> col) && (col >= 'a' && col <= 'h'))
         && ((ss >> row) && (row == (sideToMove == WHITE ? '6' : '3'))))
     {
+        st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
+
         // En passant square will be considered only if
         // a) side to move have a pawn threatening epSquare
         // b) there is an enemy pawn in front of epSquare
         // c) there is no piece on epSquare or behind epSquare
-        if (   attacks_bb<PAWN>(st->epSquare, ~sideToMove) & pieces(sideToMove, PAWN)
-            && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
-            && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove)))))
-            st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
+        if (   !(attacks_bb<PAWN>(st->epSquare, ~sideToMove) & pieces(sideToMove, PAWN))
+            || !(pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
+            ||  (pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove)))))
+            st->epSquare = SQ_NONE;
     }
 
     // 5-6. Halfmove clock and fullmove number
