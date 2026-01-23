@@ -264,24 +264,20 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 
     // 4. En passant square.
     // Ignore if square is invalid or not on side to move relative rank 6.
-    bool enpassant = false;
+    st->epSquare = SQ_NONE;
 
     if (((ss >> col) && (col >= 'a' && col <= 'h'))
         && ((ss >> row) && (row == (sideToMove == WHITE ? '6' : '3'))))
     {
-        st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
-
         // En passant square will be considered only if
         // a) side to move have a pawn threatening epSquare
         // b) there is an enemy pawn in front of epSquare
         // c) there is no piece on epSquare or behind epSquare
-        enpassant = attacks_bb<PAWN>(st->epSquare, ~sideToMove) & pieces(sideToMove, PAWN)
-                 && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
-                 && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove))));
+        if (   attacks_bb<PAWN>(st->epSquare, ~sideToMove) & pieces(sideToMove, PAWN)
+            && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
+            && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove)))))
+            st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
     }
-
-    if (!enpassant)
-        st->epSquare = SQ_NONE;
 
     // 5-6. Halfmove clock and fullmove number
     ss >> std::skipws >> st->rule50 >> gamePly;
@@ -292,6 +288,11 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 
     chess960 = isChess960;
     set_state();
+
+    // Now check for full legality of ep square.
+    // Note: this must be done after state is set.
+    if (st->epSquare != SQ_NONE && !ep_is_legal())
+        st->epSquare = SQ_NONE;
 
     assert(pos_is_ok());
 
