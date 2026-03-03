@@ -114,7 +114,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("UCI_Chess960", Option(false));
 
-    options.add("UCI_ShowWDL", Option(false));
+    options.add("UCI_ShowWDL", Option(true));
 
     options.add("WDLfromSearch", Option(true));
 
