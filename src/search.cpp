@@ -340,7 +340,7 @@ void Search::Worker::iterative_deepening() {
             rm.previousPv    = rm.pv;
 
             if (multiPV > 1 && smartMultiPvMode)
-                rm.score = rm.uciScore = -VALUE_INFINITE;
+                rm.score = -VALUE_INFINITE;
         }
 
         size_t pvFirst = 0;
@@ -1380,20 +1380,10 @@ moves_loop:  // When in check, search starts here
             // PV move or new best move?
             if (moveCount == 1 || value > alpha)
             {
-                rm.score = rm.uciScore = value;
-                rm.selDepth            = selDepth;
-                rm.scoreLowerbound = rm.scoreUpperbound = false;
-
-                if (value >= beta)
-                {
-                    rm.scoreLowerbound = true;
-                    rm.uciScore        = beta;
-                }
-                else if (value <= alpha)
-                {
-                    rm.scoreUpperbound = true;
-                    rm.uciScore        = alpha;
-                }
+                rm.score           = value;
+                rm.selDepth        = selDepth;
+                rm.scoreLowerbound = value >= beta;
+                rm.scoreUpperbound = value <= alpha;
 
                 rm.pv.resize(1);
 
@@ -1412,7 +1402,7 @@ moves_loop:  // When in check, search starts here
                 // All other moves but the PV, are set to the lowest value: this
                 // is not a problem when sorting because the sort is stable and the
                 // move position in the list is preserved - just the PV is pushed up.
-                rm.score = rm.uciScore = -VALUE_INFINITE;
+                rm.score = -VALUE_INFINITE;
 
             // Reset selDepth before searching the next root move
             selDepth = 1;
@@ -2189,7 +2179,7 @@ void SearchManager::pv(Search::Worker&           worker,
             continue;
 
         Depth d = updated ? depth : std::max(1, depth - 1);
-        Value v = updated ? rootMoves[i].uciScore : rootMoves[i].previousScore;
+        Value v = updated ? rootMoves[i].score : rootMoves[i].previousScore;
 
         if (v == -VALUE_INFINITE)
             v = VALUE_ZERO;
