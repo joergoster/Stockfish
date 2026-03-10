@@ -275,8 +275,7 @@ void Search::Worker::iterative_deepening() {
     Move pv[MAX_PLY + 1];
 
     Depth lastBestMoveDepth = 0;
-    Value lastBestScore     = -VALUE_INFINITE;
-    auto  lastBestPV        = std::vector{Move::none()};
+    Move  lastBestMove = Move::none();
 
     Value  alpha, beta;
     Value  bestValue     = -VALUE_INFINITE;
@@ -448,13 +447,7 @@ void Search::Worker::iterative_deepening() {
 
             // Output the just finished PV line
             if (mainThread
-                && (threads.stop || pvIdx + 1 == multiPV || elapsed() > 10000)
-                // A thread that aborted search can have mated-in/TB-loss PV and
-                // score that cannot be trusted, i.e. it can be delayed or refuted
-                // if we would have had time to fully search other root-moves. Thus
-                // we suppress this output and below pick a proven score/PV for this
-                // thread (from the previous iteration).
-                && !(threads.abortedSearch && is_loss(rootMoves[0].uciScore)))
+                && (threads.stop || pvIdx + 1 == multiPV || elapsed() > 10000))
                 mainThread->pv(*this, threads, tt, rootDepth);
 
             if (threads.stop)
@@ -462,24 +455,14 @@ void Search::Worker::iterative_deepening() {
         }
 
         if (!threads.stop)
+        {
             completedDepth = rootDepth;
 
-        // We make sure not to pick an unproven mated-in score,
-        // in case this thread prematurely stopped search (aborted-search).
-        if (threads.abortedSearch && rootMoves[0].score != -VALUE_INFINITE
-            && is_loss(rootMoves[0].score))
-        {
-            // Bring the last best move to the front for best thread selection.
-            Utility::move_to_front(rootMoves, [&lastBestPV = std::as_const(lastBestPV)](
-                                                const auto& rm) { return rm == lastBestPV[0]; });
-            rootMoves[0].pv    = lastBestPV;
-            rootMoves[0].score = rootMoves[0].uciScore = lastBestScore;
-        }
-        else if (rootMoves[0].pv[0] != lastBestPV[0])
-        {
-            lastBestPV        = rootMoves[0].pv;
-            lastBestScore     = rootMoves[0].score;
-            lastBestMoveDepth = rootDepth;
+            if (rootMoves[0].pv[0] != lastBestMove)
+            {
+                lastBestMoveDepth = rootDepth;
+                lastBestMove = rootMoves[0].pv[0];
+            }
         }
 
         if (!mainThread)
@@ -2044,7 +2027,7 @@ void SearchManager::check_time(Search::Worker& worker) {
       && ((worker.limits.use_time_management() && (elapsed > tm.maximum() || stopOnPonderhit))
           || (worker.limits.movetime && elapsed >= worker.limits.movetime)
           || (worker.limits.nodes && worker.threads.nodes_searched() >= worker.limits.nodes)))
-        worker.threads.stop = worker.threads.abortedSearch = true;
+        worker.threads.stop = true;
 }
 
 // Used to correct and extend PVs for moves that have a TB (but not a mate) score.
