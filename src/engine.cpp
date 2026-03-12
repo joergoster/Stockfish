@@ -35,7 +35,6 @@
 #include "nnue/nnue_common.h"
 #include "nnue/nnue_misc.h"
 #include "numa.h"
-#include "perft.h"
 #include "position.h"
 #include "search.h"
 #include "shm.h"
@@ -146,18 +145,14 @@ Engine::Engine(std::optional<std::string> path) :
     resize_threads();
 }
 
-std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
-    verify_networks();
-
-    return Benchmark::perft(fen, depth, isChess960);
-}
-
 void Engine::go(Search::LimitsType& limits) {
-    assert(limits.perft == 0);
-    verify_networks();
+
+    if (!limits.perft) // No eval needed for perft
+        verify_networks();
 
     threads.start_thinking(options, pos, states, limits);
 }
+
 void Engine::stop() { threads.stop = true; }
 
 void Engine::search_clear() {
@@ -343,6 +338,8 @@ std::string Engine::visualize() const {
     ss << pos;
     return ss.str();
 }
+
+uint64_t Engine::get_nodes_searched() const { return threads.nodes_searched(); }
 
 int Engine::get_hashfull(int maxAge) const { return tt.hashfull(maxAge); }
 

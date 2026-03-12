@@ -41,6 +41,7 @@
 #include "movepick.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
+#include "perft.h"
 #include "position.h"
 #include "syzygy/tbprobe.h"
 #include "thread.h"
@@ -187,6 +188,28 @@ void Search::Worker::ensure_network_replicated() {
 }
 
 void Search::Worker::start_searching() {
+
+    if (limits.perft)
+    {
+        if (is_mainthread())
+        {
+            threads.distribute_root_moves(rootPos);
+            threads.start_searching();
+        }
+
+        auto isChess960 = rootPos.is_chess960();
+        const auto fen = rootPos.fen();
+
+        nodes = Benchmark::perft(fen, rootMoves, limits.perft, isChess960);
+
+        if (is_mainthread())
+        {
+            threads.wait_for_search_finished();
+            sync_cout << "\nNodes searched: " << threads.nodes_searched() << sync_endl;
+        }
+
+        return;
+    }
 
     accumulatorStack.reset();
 

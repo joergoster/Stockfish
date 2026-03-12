@@ -133,6 +133,7 @@ class ThreadPool {
     ThreadPool& operator=(ThreadPool&&)      = delete;
 
     void   start_thinking(const OptionsMap&, Position&, StateListPtr&, Search::LimitsType);
+    void   distribute_root_moves(const Position&);
     void   run_on_thread(size_t threadId, std::function<void()> f);
     void   wait_on_thread(size_t threadId);
     size_t num_threads() const;

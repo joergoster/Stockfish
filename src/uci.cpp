@@ -220,11 +220,7 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
 void UCIEngine::go(std::istringstream& is) {
 
     Search::LimitsType limits = parse_limits(is);
-
-    if (limits.perft)
-        perft(limits);
-    else
-        engine.go(limits);
+    engine.go(limits);
 }
 
 void UCIEngine::bench(std::istream& args) {
@@ -258,13 +254,11 @@ void UCIEngine::bench(std::istream& args) {
             {
                 Search::LimitsType limits = parse_limits(is);
 
+                engine.go(limits);
+                engine.wait_for_search_finished();
+
                 if (limits.perft)
-                    nodesSearched = perft(limits);
-                else
-                {
-                    engine.go(limits);
-                    engine.wait_for_search_finished();
-                }
+                    nodesSearched = engine.get_nodes_searched();
 
                 nodes += nodesSearched;
                 nodesSearched = 0;
@@ -457,12 +451,6 @@ void UCIEngine::benchmark(std::istream& args) {
 void UCIEngine::setoption(std::istringstream& is) {
     engine.wait_for_search_finished();
     engine.get_options().setoption(is);
-}
-
-std::uint64_t UCIEngine::perft(const Search::LimitsType& limits) {
-    auto nodes = engine.perft(engine.fen(), limits.perft, engine.get_options()["UCI_Chess960"]);
-    sync_cout << "\nNodes searched: " << nodes << "\n" << sync_endl;
-    return nodes;
 }
 
 void UCIEngine::position(std::istringstream& is) {

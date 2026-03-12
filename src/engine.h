@@ -57,8 +57,6 @@ class Engine {
 
     ~Engine() { wait_for_search_finished(); }
 
-    std::uint64_t perft(const std::string& fen, Depth depth, bool isChess960);
-
     // non blocking call to start searching
     void go(Search::LimitsType&);
     // non blocking call to stop searching
@@ -98,6 +96,7 @@ class Engine {
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();
 
+    uint64_t get_nodes_searched() const;
     int get_hashfull(int maxAge = 0) const;
 
     std::string                            fen() const;

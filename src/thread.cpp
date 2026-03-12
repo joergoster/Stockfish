@@ -343,6 +343,31 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     main_thread()->start_searching();
 }
 
+void ThreadPool::distribute_root_moves(const Position& pos) {
+
+    for (auto&& th : threads)
+        th->worker->rootMoves.clear();
+
+    Search::RootMoves searchMoves;
+
+    for (const auto& m : MoveList<LEGAL>(pos))
+        searchMoves.emplace_back(m);
+
+    auto it = searchMoves.begin();
+
+    while (it < searchMoves.end())
+    {
+        for (auto&& th : threads)
+        {
+            th->worker->rootMoves.emplace_back(*it);
+            it++;
+
+            if (it == searchMoves.end())
+                break;
+        }
+    }
+}
+
 // ThreadPool::get_best_thread() picks the best thread at the end
 // of a search based on our voting scheme.
 Thread* ThreadPool::get_best_thread() const {
