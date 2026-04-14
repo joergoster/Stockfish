@@ -384,7 +384,8 @@ bool Search::Worker::iterative_deepening() {
                 // and we want to keep the same order for all the moves except the
                 // new PV that goes to the front. Note that in the case of MultiPV
                 // search the already searched PV lines are preserved.
-                std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+                if (!threads.stop)
+                    std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
 
                 // If search has been stopped, we break immediately. Sorting is
                 // safe because RootMoves is still valid, although it refers to
