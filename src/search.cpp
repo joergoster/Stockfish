@@ -265,8 +265,6 @@ bool Search::Worker::iterative_deepening() {
 
     SearchManager* mainThread = (is_mainthread() ? main_manager() : nullptr);
 
-    PVMoves pv;
-
     Depth lastBestMoveDepth = 0;
 
     Value  alpha, beta;
@@ -290,9 +288,10 @@ bool Search::Worker::iterative_deepening() {
     }
 
     for (int i = 0; i <= MAX_PLY + 2; ++i)
+    {
         (ss + i)->ply = i;
-
-    ss->pv = &pv;
+        (ss + i)->pv  = &pv[i];
+    }
 
     if (mainThread)
     {
@@ -657,6 +656,8 @@ Value Search::Worker::search(
     if (depth <= 0)
         return qsearch<PvNode ? PV : NonPV>(pos, ss, alpha, beta);
 
+    ss->pv->clear();
+
     // Limit the depth if extensions made it too large
     depth = std::min(depth, MAX_PLY - 1);
 
@@ -673,7 +674,6 @@ Value Search::Worker::search(
     assert(0 < depth && depth < MAX_PLY);
     assert(!(PvNode && cutNode));
 
-    PVMoves   pv;
     StateInfo st;
 
     Key   posKey;
@@ -1062,8 +1062,6 @@ moves_loop:  // When in check, search starts here
             main_manager()->updates.onIter(
               {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
         }
-        if (PvNode)
-            (ss + 1)->pv = nullptr;
 
         extension  = 0;
         capture    = pos.capture_stage(move);
@@ -1313,9 +1311,6 @@ moves_loop:  // When in check, search starts here
         // otherwise let the parent node fail low with value <= alpha and try another move.
         if (PvNode && (moveCount == 1 || value > alpha))
         {
-            (ss + 1)->pv = &pv;
-            (ss + 1)->pv->clear();
-
             // Extend move from transposition table if we are about to dive into qsearch.
             // decisive score handling improves mate finding and retrograde analysis.
             if (move == ttData.move
@@ -1403,7 +1398,10 @@ moves_loop:  // When in check, search starts here
                 bestMove = move;
 
                 if (PvNode && !rootNode)  // Update pv even in fail-high case
+                {
+                    ss->pv->clear();
                     ss->pv->update(move, (ss + 1)->pv);
+                }
 
                 if (value >= beta)
                 {
@@ -1539,6 +1537,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     assert(alpha >= -VALUE_INFINITE && alpha < beta && beta <= VALUE_INFINITE);
     assert(PvNode || (alpha == beta - 1));
 
+    ss->pv->clear();
+
     // Check if we have an upcoming move that draws by repetition
     if (alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
     {
@@ -1547,7 +1547,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             return alpha;
     }
 
-    PVMoves   pv;
     StateInfo st;
 
     Key   posKey;
@@ -1557,12 +1556,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     int   moveCount;
 
     // Step 1. Initialize node
-    if (PvNode)
-    {
-        (ss + 1)->pv = &pv;
-        ss->pv->clear();
-    }
-
     bestMove    = Move::none();
     ss->inCheck = pos.checkers();
     moveCount   = 0;
@@ -1721,7 +1714,10 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 bestMove = move;
 
                 if (PvNode)  // Update pv even in fail-high case
+                {
+                    ss->pv->clear();
                     ss->pv->update(move, (ss + 1)->pv);
+                }
 
                 if (value < beta)  // Update alpha here!
                     alpha = value;

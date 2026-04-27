@@ -370,6 +370,7 @@ class Worker {
     Value evaluate(const Position&);
 
     LimitsType limits;
+    PVMoves    pv[MAX_PLY + 4];
 
     size_t                pvIdx, pvLast;
     std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
