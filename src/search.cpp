@@ -302,15 +302,15 @@ bool Search::Worker::iterative_deepening() {
             mainThread->iterValue.fill(mainThread->bestPreviousScore);
     }
 
-    size_t multiPV = size_t(options["MultiPV"]);
-    Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
+//    size_t multiPV = size_t(options["MultiPV"]);
+//    Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
     // When playing with strength handicap enable MultiPV search that we will
     // use behind-the-scenes to retrieve a set of possible moves.
-    if (skill.enabled())
-        multiPV = std::max(multiPV, size_t(4));
+//    if (skill.enabled())
+//        multiPV = std::max(multiPV, size_t(4));
 
-    multiPV = std::min(multiPV, rootMoves.size());
+//    multiPV = std::min(multiPV, rootMoves.size());
 
     int  searchAgainCounter = 0;
     bool uciPvSent          = false;
@@ -346,15 +346,15 @@ bool Search::Worker::iterative_deepening() {
             searchAgainCounter++;
 
         // MultiPV loop. We perform a full root search for each PV line
-        for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
-        {
-            if (pvIdx == pvLast)
+//        for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
+//        {
+/*            if (pvIdx == pvLast)
             {
                 pvFirst = pvLast;
                 for (pvLast++; pvLast < rootMoves.size(); pvLast++)
                     if (rootMoves[pvLast].tbRank != rootMoves[pvFirst].tbRank)
                         break;
-            }
+            }*/
 
             // Reset UCI info selDepth for each depth and each PV line
             selDepth = 0;
@@ -457,7 +457,7 @@ bool Search::Worker::iterative_deepening() {
 
             if (threads.stop)
                 break;
-        }
+//        }
 
         if (!threads.stop)
         {
