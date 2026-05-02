@@ -334,10 +334,22 @@ bool Search::Worker::iterative_deepening() {
             uciPvSent = false;
         }
 
-        // Save the last iteration's scores before the first PV line is searched and
-        // all the move scores except the (new) PV are set to -VALUE_INFINITE.
-        for (RootMove& rm : rootMoves)
-            rm.previousScore = rm.score;
+        // Now loop over all root moves and decide which one
+        // to search next.
+        for (auto i = 0; i < rootMoves.size(); i++)
+        {
+            // An unsearched move gets priority
+            if (rootMoves[i].completedDepth == 0)
+            {
+                currentPVIdx = i;
+                break;
+            }
+
+            // Otherwise, calculate the UCB1 value
+        }
+
+        // Save the last iteration's score for this root move
+        rootMoves[currentPVIdx].previousScore = rootMoves[currentPVIdx].score;
 
         size_t pvFirst = 0;
         pvLast         = 0;
@@ -356,7 +368,7 @@ bool Search::Worker::iterative_deepening() {
                         break;
             }*/
 
-            // Reset UCI info selDepth for each depth and each PV line
+            // Reset UCI info selDepth
             selDepth = 0;
 
             // Reset aspiration window starting size
@@ -366,7 +378,7 @@ bool Search::Worker::iterative_deepening() {
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
             // Adjust optimism based on root move's averageScore
-            optimism[us]  = 144 * avg / (std::abs(avg) + 91);
+            optimism[ us] = 144 * avg / (std::abs(avg) + 91);
             optimism[~us] = -optimism[us];
 
             // Start with a small aspiration window and, in the case of a fail
