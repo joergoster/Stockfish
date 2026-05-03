@@ -67,6 +67,10 @@ using namespace Search;
 
 namespace {
 
+// Our exploration constant. Lower values lead to more
+// exploitation, higher values to more exploration.
+constexpr double C = 15.2 * std::sqrt(2);
+
 constexpr uint64_t NODES_LIMIT_OUTPUT = 10'000'000;
 
 constexpr int SEARCHEDLIST_CAPACITY = 32;
@@ -273,7 +277,7 @@ bool Search::Worker::iterative_deepening() {
     Value  bestValue     = -VALUE_INFINITE;
     Color  us            = rootPos.side_to_move();
     double timeReduction = 1, totBestMoveChanges = 0;
-    int    delta, iterIdx                        = 0;
+    int    delta, iterIdx, failedHighCnt         = 0;
 
     // Allocate stack with extra size to allow access from (ss - 7) to (ss + 2):
     // (ss - 7) is needed for update_continuation_histories(ss - 1) which accesses (ss - 6),
@@ -288,6 +292,12 @@ bool Search::Worker::iterative_deepening() {
         (ss - i)->continuationCorrectionHistory = &continuationCorrectionHistory[NO_PIECE][0];
         (ss - i)->staticEval                    = VALUE_NONE;
     }
+
+    lowPlyHistory.fill(98);
+
+    for (Color c : {WHITE, BLACK})
+        for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
+            mainHistory[c][i] = mainHistory[c][i] * 820 / 1024;
 
     for (int i = 0; i <= MAX_PLY + 2; ++i)
         (ss + i)->ply = i;
@@ -315,17 +325,12 @@ bool Search::Worker::iterative_deepening() {
     int  searchAgainCounter = 0;
     bool uciPvSent          = false;
 
-    lowPlyHistory.fill(98);
-
-    for (Color c : {WHITE, BLACK})
-        for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
-            mainHistory[c][i] = mainHistory[c][i] * 820 / 1024;
-
-    // Iterative deepening loop until requested to stop or the target depth is reached
-    while (rootDepth + 1 < MAX_PLY && !threads.stop
-           && !(limits.depth && mainThread && rootDepth >= limits.depth))
+    // Iterative loop until requested to stop
+    while (!threads.stop)
+//    while (rootDepth + 1 < MAX_PLY && !threads.stop
+//           && !(limits.depth && mainThread && rootDepth >= limits.depth))
     {
-        rootDepth++;
+//        rootDepth++;
 
         // Age out PV variability metric and signal the start of a new iteration.
         if (mainThread)
@@ -341,18 +346,23 @@ bool Search::Worker::iterative_deepening() {
             // An unsearched move gets priority
             if (rootMoves[i].completedDepth == 0)
             {
-                currentPVIdx = i;
+                pvIdx = i;
                 break;
             }
 
-            // Otherwise, calculate the UCB1 value
+            if (rootMoves[i].ucbValue > bestUCBValue)
+            {
+                bestUCBValue = rootMoves[i].ucbValue;
+                pvIdx = i;
+            }
         }
 
         // Save the last iteration's score for this root move
-        rootMoves[currentPVIdx].previousScore = rootMoves[currentPVIdx].score;
+        rootMoves[pvIdx].previousScore = rootMoves[pvIdx].score;
+        rootMoves[pvIdx].score         = -VALUE_INFINITE;
 
-        size_t pvFirst = 0;
-        pvLast         = 0;
+//        size_t pvFirst = 0;
+//        pvLast         = 0;
 
         if (!threads.increaseDepth)
             searchAgainCounter++;
@@ -368,8 +378,12 @@ bool Search::Worker::iterative_deepening() {
                         break;
             }*/
 
+            // Set rootDepth
+            rootDepth = rootMoves[pvIdx].completedDepth + 1;
+
             // Reset UCI info selDepth
             selDepth = 0;
+            failedHighCnt = 0;
 
             // Reset aspiration window starting size
             delta     = 5 + threadIdx % 8 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 10208;
@@ -384,7 +398,6 @@ bool Search::Worker::iterative_deepening() {
             // Start with a small aspiration window and, in the case of a fail
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
-            int failedHighCnt = 0;
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -400,7 +413,7 @@ bool Search::Worker::iterative_deepening() {
                 // and we want to keep the same order for all the moves except the
                 // new PV that goes to the front. Note that in the case of MultiPV
                 // search the already searched PV lines are preserved.
-                std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
+//                std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
 
                 // If search has been stopped, we break immediately. Sorting is
                 // safe because RootMoves is still valid, although it refers to
@@ -440,12 +453,21 @@ bool Search::Worker::iterative_deepening() {
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
+        // We finished searching this root move, so update its searched depth
+        // and its UCB value.
+        if (!threads.stop)
+        {
+            rootMoves[pvIdx].completedDepth = rootDepth;
+            rootMoves[pvIdx].ucbValue = rootMoves[pvIdx].score / 10.0
+                                        + C * std::sqrt(std::log(nodes) / rootMoves[pvIdx].effort);
+        }
+
             // In multiPV analysis we do not let aborted searches spoil mated-in/
             // TB loss scores from a completed search in an earlier PV line.
             // A mated-in/TB loss from an aborted search for pvIdx > 0 can only become
             // bestmove in the sorting below, if the current bestmove (and hence also
             // the previously searched pvIdx - 1 line) is already a proven loss.
-            if (threads.stop && pvIdx && is_loss(rootMoves[pvIdx - 1].score)
+/*            if (threads.stop && pvIdx && is_loss(rootMoves[pvIdx - 1].score)
                 && rootMoves[pvIdx] < rootMoves[pvIdx - 1])
             {
                 rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
@@ -457,9 +479,21 @@ bool Search::Worker::iterative_deepening() {
                 rootMoves[pvIdx].scoreLowerbound = rootMoves[pvIdx].scoreUpperbound = false;
                 rootMoves[pvIdx].pv.resize(1);
             }
+*/
+        // Have we reached the depth limit?
+        if (limits.depth && rootMoves[pvIdx].completedDepth == limits.depth)
+            threads.stop = true;
 
-            // Sort the PV lines searched so far and update the GUI
-            std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
+        // Sort the PV lines searched so far and update the GUI
+        std::stable_sort(rootMoves.begin(), rootMoves.end());
+
+        // Have we found a "mate in x" after a completed iteration?
+        if (limits.mate && !threads.stop
+            && ((rootMoves[0].score >= VALUE_MATE_IN_MAX_PLY
+                 && VALUE_MATE - rootMoves[0].score <= 2 * limits.mate)
+                || (rootMoves[0].score <= VALUE_MATED_IN_MAX_PLY
+                    && VALUE_MATE + rootMoves[0].score <= 2 * limits.mate)))
+            threads.stop = true;
 
             if (mainThread && !threads.stop && (pvIdx + 1 == multiPV || nodes > NODES_LIMIT_OUTPUT))
             {
@@ -467,9 +501,10 @@ bool Search::Worker::iterative_deepening() {
                 uciPvSent = (pvIdx + 1 == multiPV);
             }
 
-            if (threads.stop)
-                break;
+//            if (threads.stop)
+//                break;
 //        }
+
 
         if (!threads.stop)
         {
@@ -501,14 +536,6 @@ bool Search::Worker::iterative_deepening() {
             else if (!rootMoves[0].scoreLowerbound)
                 rootMoves[0].scoreUpperbound = true;
         }
-
-        // Have we found a "mate in x" after a completed iteration?
-        if (limits.mate && !threads.stop
-            && ((rootMoves[0].score >= VALUE_MATE_IN_MAX_PLY
-                 && VALUE_MATE - rootMoves[0].score <= 2 * limits.mate)
-                || (rootMoves[0].score <= VALUE_MATED_IN_MAX_PLY
-                    && VALUE_MATE + rootMoves[0].score <= 2 * limits.mate)))
-            threads.stop = true;
 
         if (!mainThread)
             continue;
@@ -1062,9 +1089,11 @@ moves_loop:  // When in check, search starts here
             continue;
 
         // At root obey the "searchmoves" option and skip moves not listed in Root
-        // Move List. In MultiPV mode we also skip PV moves that have been already
-        // searched and those of lower "TB rank" if we are in a TB root position.
-        if (rootNode && !std::count(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast, move))
+        // Move List. 
+//        if (rootNode && !std::count(rootMoves.begin(), rootMoves.end(), move))
+//            continue;
+
+        if (rootNode && move != rootMoves[pvIdx].pv[0])
             continue;
 
         ss->moveCount = ++moveCount;
