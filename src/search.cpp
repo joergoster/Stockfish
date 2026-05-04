@@ -344,7 +344,7 @@ bool Search::Worker::iterative_deepening() {
         for (auto i = 0; i < rootMoves.size(); i++)
         {
             // An unsearched move gets priority
-            if (rootMoves[i].completedDepth == 0)
+            if (rootMoves[i].searchedDepth == 0)
             {
                 pvIdx = i;
                 break;
@@ -379,7 +379,7 @@ bool Search::Worker::iterative_deepening() {
             }*/
 
             // Set rootDepth
-            rootDepth = rootMoves[pvIdx].completedDepth + 1;
+            rootDepth = rootMoves[pvIdx].searchedDepth + 1;
 
             // Reset UCI info selDepth
             selDepth = 0;
@@ -455,9 +455,11 @@ bool Search::Worker::iterative_deepening() {
 
         // We finished searching this root move, so update its searched depth
         // and its UCB value.
-        if (!threads.stop)
+        if (rootMoves[pvIdx].score != -VALUE_INFINITE)
         {
-            rootMoves[pvIdx].completedDepth = rootDepth;
+            completedDepth = std::max(rootDepth, completedDepth);
+            rootMoves[pvIdx].searchedDepth = rootDepth;
+
             rootMoves[pvIdx].ucbValue = rootMoves[pvIdx].score / 10.0
                                         + C * std::sqrt(std::log(nodes) / rootMoves[pvIdx].effort);
         }
@@ -481,7 +483,7 @@ bool Search::Worker::iterative_deepening() {
             }
 */
         // Have we reached the depth limit?
-        if (limits.depth && rootMoves[pvIdx].completedDepth == limits.depth)
+        if (limits.depth && rootMoves[pvIdx].searchedDepth == limits.depth)
             threads.stop = true;
 
         // Sort the PV lines searched so far and update the GUI
@@ -508,7 +510,7 @@ bool Search::Worker::iterative_deepening() {
 
         if (!threads.stop)
         {
-            completedDepth = rootDepth;
+//            completedDepth = rootDepth;
 
             if (lastIterationPV.empty() || rootMoves[0].pv[0] != lastIterationPV[0])
                 lastBestMoveDepth = rootDepth;
