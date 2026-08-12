@@ -713,7 +713,10 @@ Value Search::Worker::search(
 
     // Dive into quiescence search when the depth reaches zero
     if (depth <= 0)
+    {
+        std::cout << "   QS";
         return qsearch<PvNode ? PV : NonPV>(pos, ss, alpha, beta);
+    }
 
     // Limit the depth if extensions made it too large
     depth = std::min(depth, MAX_PLY - 1);
@@ -723,7 +726,10 @@ Value Search::Worker::search(
     {
         alpha = value_draw(nodes);
         if (alpha >= beta)
+        {
+            std::cout << " CUCKOO";
             return alpha;
+        }
     }
 
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
@@ -772,7 +778,10 @@ Value Search::Worker::search(
         // Step 2. Check for aborted search and immediate draw
         if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
+        {
+            std::cout << " DRAW";
             return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : value_draw(nodes);
+        }
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -783,7 +792,10 @@ Value Search::Worker::search(
         alpha = std::max(mated_in(ss->ply), alpha);
         beta  = std::min(mate_in(ss->ply + 1), beta);
         if (alpha >= beta)
+        {
+            std::cout << " MDP MATE";
             return alpha;
+        }
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
@@ -887,13 +899,22 @@ Value Search::Worker::search(
 
                 // Check that the ttValue after the tt move would also trigger a cutoff
                 if (!is_valid(ttDataNext.value))
+                {
+                    std::cout << "   TT";
                     return ttData.value;
+                }
 
                 if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                {
+                    std::cout << "   TT";
                     return ttData.value;
+                }
             }
             else
+            {
+                std::cout << "   TT";
                 return ttData.value;
+            }
         }
     }  // No cutoff, but why? Does the stored inexact value mismatch our aspiration window?
     else if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
@@ -969,12 +990,17 @@ Value Search::Worker::search(
             sharedHistory.pawn_entry(pos)[pos.piece_on(prevSq)][prevSq] << evalDiff * 13;
     }
 
+//    if (ss->ply < rootDepth / 5)
+//        goto moves_loop;
 
     // Step 7. Razoring
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
     if (!PvNode && eval < alpha - 483 - 318 * depth * depth)
+    {
+        std::cout << " RAZR";
         return qsearch<NonPV>(pos, ss, alpha, beta);
+    }
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
@@ -989,7 +1015,10 @@ Value Search::Worker::search(
                              + std::abs(correctionValue) / 198435;
 
         if (eval - futilityMargin >= beta)
+        {
+            std::cout << " FUT1";
             return (661 * beta + 363 * eval) / 1024;
+        }
     }
 
     // Step 9. Null move search with verification search
@@ -997,6 +1026,8 @@ Value Search::Worker::search(
         && pos.non_pawn_material(us) && ss->ply >= nmpMinPly && beta >= -2000)
     {
         assert((ss - 1)->currentMove != Move::null());
+
+        std::cout << " " << UCIEngine::move(Move::null(), pos.is_chess960());
 
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3 + std::max((ss->staticEval - beta) / 256, 0);
@@ -1010,9 +1041,20 @@ Value Search::Worker::search(
         if (nullValue >= beta && !is_win(nullValue))
         {
             if (nmpMinPly || depth < 16)
+            {
+                std::cout << " NULL";
                 return nullValue;
+            }
 
             assert(!nmpMinPly);  // Recursive verification is not allowed
+
+            std::cout << std::endl;
+            if (ss->ply)
+            {
+                for (int i = 0; i < ss->ply - 1; ++i)
+                    std::cout << "     ";
+            }
+            std::cout << "VERIF";
 
             // Do verification search at high depths, with null move pruning disabled
             // until ply exceeds nmpMinPly.
@@ -1023,7 +1065,17 @@ Value Search::Worker::search(
             nmpMinPly = 0;
 
             if (v >= beta)
+            {
+                std::cout << " NULL";
                 return nullValue;
+            }
+        }
+
+        std::cout << std::endl;
+        if (ss->ply)
+        {
+            for (int i = 0; i < ss->ply; ++i)
+                std::cout << "     ";
         }
     }
 
@@ -1059,6 +1111,8 @@ Value Search::Worker::search(
 
             assert(pos.capture_stage(move));
 
+            std::cout << " " << UCIEngine::move(move, pos.is_chess960());
+
             do_move(pos, move, st, ss);
 
             // Perform a preliminary qsearch to verify that the move holds
@@ -1066,8 +1120,18 @@ Value Search::Worker::search(
 
             // If the qsearch held, perform the regular search
             if (value >= probCutBeta && probCutDepth > 0)
+            {
+                std::cout << std::endl;
+                if (ss->ply)
+                {
+                    for (int i = 0; i < ss->ply; ++i)
+                        std::cout << "     ";
+                }
+                std::cout << " " << UCIEngine::move(move, pos.is_chess960());
+
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
+            }
 
             undo_move(pos, move);
 
@@ -1078,7 +1142,17 @@ Value Search::Worker::search(
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
 
                 if (!is_decisive(value))
+                {
+                    std::cout << " PC1";
                     return value - (probCutBeta - beta);
+                }
+            }
+
+            std::cout << std::endl;
+            if (ss->ply)
+            {
+                for (int i = 0; i < ss->ply; ++i)
+                    std::cout << "     ";
             }
         }
     }
@@ -1089,7 +1163,10 @@ moves_loop:  // When in check, search starts here
     probCutBeta = beta + 428;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
+    {
+        std::cout << " PC2";
         return probCutBeta;
+    }
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
@@ -1273,6 +1350,7 @@ moves_loop:  // When in check, search starts here
                     update_correction_history(pos, ss, *this, bonus);
                 }
 
+                std::cout << " MultiCut";
                 return value;
             }
 
@@ -1287,9 +1365,30 @@ moves_loop:  // When in check, search starts here
             // if we are on a cutNode
             else if (ttData.value >= beta || cutNode)
                 extension = -3;
+
+            std::cout << std::endl;
+            // Since we are still at moveCount 1
+            if (ss->ply)
+            {
+                for (int i = 0; i < ss->ply; ++i)
+                    std::cout << "     ";
+            }
         }
 
         u64 nodeCount = rootNode ? u64(nodes) : 0;
+
+        // Print the current move
+        if (moveCount > 1)
+        {
+            std::cout << std::endl;
+            if (ss->ply)
+            {
+                for (int i = 0; i < ss->ply; ++i)
+                    std::cout << "     ";
+            }
+        }
+
+        std::cout << " " << UCIEngine::move(move, pos.is_chess960());
 
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck, ss);
@@ -1364,7 +1463,19 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
+                {
+                    std::cout << std::endl;
+                    if (ss->ply)
+                    {
+                        for (int i = 0; i < ss->ply; ++i)
+                            std::cout << "     ";
+                    }
+                    std::cout << " " << UCIEngine::move(move, pos.is_chess960());
+
+                    // Don't we need to increase the nodes counter here?
+
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                }
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1334);
@@ -1387,6 +1498,19 @@ moves_loop:  // When in check, search starts here
         // otherwise let the parent node fail low with value <= alpha and try another move.
         if (PvNode && (moveCount == 1 || value > alpha))
         {
+            // Full PV research
+            // Same here, why not increase nodes counter?
+            if (value > alpha)
+            {
+                std::cout << std::endl;
+                if (ss->ply)
+                {
+                    for (int i = 0; i < ss->ply; ++i)
+                        std::cout << "     ";
+                }
+                std::cout << " " << UCIEngine::move(move, pos.is_chess960());
+            }
+
             (ss + 1)->pv = &pv;
             (ss + 1)->pv->clear();
 
@@ -1414,6 +1538,8 @@ moves_loop:  // When in check, search starts here
 
         if (rootNode)
         {
+            std::cout << std::endl;
+
             RootMove& rm = *std::find(rootMoves.begin(), rootMoves.end(), move);
 
             rm.effort += nodes - nodeCount;
@@ -1539,7 +1665,12 @@ moves_loop:  // When in check, search starts here
         bestValue = (bestValue * depth + beta) / (depth + 1);
 
     if (!moveCount)
+    {
         bestValue = excludedMove ? alpha : ss->inCheck ? mated_in(ss->ply) : VALUE_DRAW;
+
+        if (!excludedMove)
+            std::cout << (ss->inCheck ? " MATE" : " STALEMATE");
+    }
 
     // If there is a move that produces search value greater than alpha,
     // we update the stats of searched moves.
