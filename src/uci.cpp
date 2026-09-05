@@ -188,6 +188,14 @@ void UCIEngine::loop() {
     } while (token != "quit" && cli.argc <= 1);  // The command-line arguments are one-shot
 }
 
+template<typename T>
+void UCIEngine::validate_limit(std::istream& is, T& limit, const std::string& token) {
+    is >> limit;
+    if (limit <= 0) {
+        terminate_on_critical_error("Invalid argument for '" + token + "': value must be positive");
+    }
+}
+
 Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
     Search::LimitsType limits;
     std::string        token;
