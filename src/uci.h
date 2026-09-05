@@ -51,6 +51,8 @@ class UCIEngine {
     static std::string to_lower(std::string str);
     static Move        to_move(const Position& pos, std::string str);
 
+    template<typename T>
+    void validate_limit(std::istream& is, T& limit, const std::string& token);
     Search::LimitsType parse_limits(std::istream& is);
 
     auto& engine_options() { return engine.get_options(); }

@@ -196,6 +196,9 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
 
     while (is >> token)
     {
+        if (is.fail())
+            terminate_on_critical_error("Corrupt input stream");
+
         if (token == "searchmoves")  // Needs to be the last command on the line
         {
             while (is >> token)
@@ -204,32 +207,29 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
         }
 
         else if (token == "wtime")
-            is >> limits.time[WHITE];
+            validate_limit(is, limits.time[WHITE], token);
         else if (token == "btime")
-            is >> limits.time[BLACK];
+            validate_limit(is, limits.time[BLACK], token);
         else if (token == "winc")
-            is >> limits.inc[WHITE];
+            validate_limit(is, limits.inc[WHITE], token);
         else if (token == "binc")
-            is >> limits.inc[BLACK];
+            validate_limit(is, limits.inc[BLACK], token);
         else if (token == "movestogo")
-            is >> limits.movestogo;
+            validate_limit(is, limits.movestogo, token);
         else if (token == "depth")
-            is >> limits.depth;
+            validate_limit(is, limits.depth, token);
         else if (token == "nodes")
-            is >> limits.nodes;
+            validate_limit(is, limits.nodes, token);
         else if (token == "movetime")
-            is >> limits.movetime;
+            validate_limit(is, limits.movetime, token);
         else if (token == "mate")
-            is >> limits.mate;
+            validate_limit(is, limits.mate, token);
         else if (token == "perft")
-            is >> limits.perft;
+            validate_limit(is, limits.perft, token);
         else if (token == "infinite")
             limits.infinite = 1;
         else if (token == "ponder")
             limits.ponderMode = true;
-
-        if (is.fail())
-            terminate_on_critical_error("Invalid argument for '" + token + "'");
     }
 
     return limits;
