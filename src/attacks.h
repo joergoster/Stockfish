@@ -252,8 +252,9 @@ inline constexpr auto PseudoAttacks = []() constexpr {
 
         attacks[KING][s1]   = pseudo_attacks(KING, s1);
         attacks[KNIGHT][s1] = pseudo_attacks(KNIGHT, s1);
-        attacks[QUEEN][s1] = attacks[BISHOP][s1] = pseudo_attacks(BISHOP, s1);
-        attacks[QUEEN][s1] |= attacks[ROOK][s1]  = pseudo_attacks(ROOK, s1);
+        attacks[BISHOP][s1] = pseudo_attacks(BISHOP, s1);
+        attacks[ROOK][s1]   = pseudo_attacks(ROOK, s1);
+        attacks[QUEEN][s1]  = attacks[BISHOP][s1] | attacks[ROOK][s1]
     }
 
     return attacks;
