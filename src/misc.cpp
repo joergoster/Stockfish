@@ -449,9 +449,6 @@ std::ostream& operator<<(std::ostream& os, SyncCout sc) {
     return os;
 }
 
-void sync_cout_start() { std::cout << IO_LOCK; }
-void sync_cout_end() { std::cout << IO_UNLOCK; }
-
 // Hash function based on public domain MurmurHash64A, by Austin Appleby.
 u64 hash_bytes(const char* data, usize size) {
     const u64 m = 0xc6a4a7935bd1e995ull;

@@ -35,6 +35,7 @@
 #include "benchmark.h"
 #include "engine.h"
 #include "memory.h"
+#include "misc.h"
 #include "movegen.h"
 #include "position.h"
 #include "score.h"
@@ -58,7 +59,7 @@ template<typename... Ts>
 overload(Ts...) -> overload<Ts...>;
 
 void UCIEngine::print_info_string(std::string_view str) {
-    sync_cout_start();
+    sync_cout;
     for (auto& line : split(str, "\n"))
     {
         if (!is_whitespace(line))
@@ -66,7 +67,7 @@ void UCIEngine::print_info_string(std::string_view str) {
             std::cout << "info string " << line << '\n';
         }
     }
-    sync_cout_end();
+    std::cout << sync_endl;
 }
 
 UCIEngine::UCIEngine(CommandLine cli_) :

@@ -191,9 +191,6 @@ std::ostream& operator<<(std::ostream&, SyncCout);
 #define sync_cout std::cout << IO_LOCK
 #define sync_endl std::endl << IO_UNLOCK
 
-void sync_cout_start();
-void sync_cout_end();
-
 // True if and only if the binary is compiled on a little-endian machine
 static inline const u16  Le             = 1;
 static inline const bool IsLittleEndian = *reinterpret_cast<const char*>(&Le) == 1;
