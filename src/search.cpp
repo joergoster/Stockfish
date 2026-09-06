@@ -985,6 +985,8 @@ Value Search::Worker::search(
             sharedHistory.pawn_entry(pos)[pos.piece_on(prevSq)][prevSq] << evalDiff * 13;
     }
 
+    if (rootDepth < 5 || ss->ply < rootDepth / 5)
+        goto moves_loop;
 
     // Step 8. Razoring
     // If eval is really low, skip search entirely and return the qsearch value
