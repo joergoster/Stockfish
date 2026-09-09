@@ -25,8 +25,6 @@
 
 namespace Stockfish::Benchmark {
 
-std::vector<std::string> setup_bench(const std::string&, std::istream&);
-
 struct BenchmarkSetup {
     int                      ttSize;
     int                      threads;
@@ -35,7 +33,7 @@ struct BenchmarkSetup {
     std::string              filledInvocation;
 };
 
-BenchmarkSetup setup_benchmark(std::istream&);
+BenchmarkSetup setup_speedtest(std::istream&);
 
 }  // namespace Stockfish
 

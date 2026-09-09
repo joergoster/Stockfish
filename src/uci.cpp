@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iterator>
 #include <optional>
 #include <sstream>
@@ -47,8 +48,6 @@ namespace Stockfish {
 
 using Time = std::chrono::steady_clock;
 using ms   = std::chrono::milliseconds;
-
-constexpr auto BenchmarkCommand = "speedtest";
 
 template<typename... Ts>
 struct overload: Ts... {
@@ -155,8 +154,8 @@ void UCIEngine::loop() {
         }
         else if (token == "bench")
             bench(is);
-        else if (token == BenchmarkCommand)
-            benchmark(is);
+        else if (token == "speedtest")
+            speedtest(is);
         else if (token == "d")
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
@@ -254,76 +253,128 @@ void UCIEngine::go(std::istringstream& is) {
         engine.go(limits);
 }
 
+// Runs a search over a given number of positions. There are five
+// parameters: TT size in MB, number of search threads that should be used,
+// the limit value to spend on each position, a file name where to look
+// for positions in FEN format, and the type of the limit. Possible
+// limits are: depth, perft, mate, nodes and movetime (in milliseconds).
+//
+// Examples:
+// bench                            : search default positions up to depth 13
+// bench 64 1 15                    : search default positions up to depth 15 (TT = 64MB)
+// bench 64 1 100000 default nodes  : search default positions for 100K nodes each
+// bench 64 4 5000 default movetime : search default positions with 4 threads for 5 sec
+// bench 16 1 5 blah perft          : run a perft 5 on positions in file "blah"
 void UCIEngine::bench(std::istream& args) {
-    std::string token;
-    u64         num, nodes = 0, cnt = 1;
-    u64         nodesSearched = 0;
-    const auto& options       = engine.get_options();
+
+    std::string fen, token;
+    u64 nodes = 0, num = 1;
+    u64 nodesSearched = 0;
+    const auto& options = engine.get_options();
+    TimePoint elapsed, startTime;
 
     engine.set_on_update_full([&](const auto& i) {
         nodesSearched = i.nodes;
         on_update_full(i, options["UCI_ShowWDL"]);
     });
 
-    std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
+    // Set the search conditions
+    std::string ttSize    = (args >> token) ? token : "16";
+    std::string threads   = (args >> token) ? token : "1";
+    std::string limit     = (args >> token) ? token : "13";
+    std::string fenFile   = (args >> token) ? token : "default";
+    std::string limitType = (args >> token) ? token : "depth";
 
-    num = count_if(list.begin(), list.end(),
-                   [](const std::string& s) { return s.find("go ") == 0 || s.find("eval") == 0; });
-
-    TimePoint elapsed = now();
-
-    for (const auto& cmd : list)
+    // Reject invalid bench limit type
+    if (   limitType != "depth" && limitType != "nodes"
+        && limitType != "movetime" && limitType != "mate"
+        && limitType != "perft" && limitType != "eval")
     {
-        std::istringstream is(cmd);
-        is >> token;
+        std::cerr << "Unknown bench limit type: " << limitType << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
 
-        if (token == "go" || token == "eval")
+    // Open the fen file
+    std::ifstream file(fenFile);
+
+    if (!file.is_open())
+    {
+        std::cerr << "Unable to open file " << fenFile << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Set options for Threads and Hash
+    std::istringstream ss;
+    ss = std::istringstream("name Threads value " + threads);
+    setoption(ss);
+
+    ss = std::istringstream("name Hash value " + ttSize);
+    setoption(ss);
+
+    // ucinewgame
+    engine.search_clear();
+    startTime = now();
+
+    while (std::getline(file, fen))
+    {
+        // Ignore empty and whitespace-only lines
+        if (fen.empty())
+            continue;
+
+        if (std::all_of(fen.begin(), fen.end(), [](unsigned char c) { return std::isspace(c); }))
+            continue;
+
+        // Check if it is a setoption command
+        std::istringstream is(fen);
+        std::string firstToken;
+
+        if (is >> firstToken && firstToken == "setoption")
         {
-            std::cerr << "\nPosition: " << cnt++ << '/' << num << " (" << engine.fen() << ")"
-                      << std::endl;
-            if (token == "go")
-            {
-                Search::LimitsType limits = parse_limits(is);
-
-                if (limits.perft)
-                    nodesSearched = perft(limits);
-                else
-                {
-                    engine.go(limits);
-                    engine.wait_for_search_finished();
-                }
-
-                nodes += nodesSearched;
-                nodesSearched = 0;
-            }
-            else
-                engine.trace_eval();
-        }
-        else if (token == "setoption")
             setoption(is);
-        else if (token == "position")
-            position(is);
-        else if (token == "ucinewgame")
+            continue;
+        }
+
+        // Setup the position
+        ss = std::istringstream("fen " + fen);
+        position(ss);
+
+        std::cerr << "\nPosition: " << num++ << " (" << engine.fen() << ")" << std::endl;
+
+        if (limitType == "eval")
+            engine.trace_eval();
+        else
         {
-            engine.search_clear();  // search_clear may take a while
-            elapsed = now();
+            ss = std::istringstream(limitType + " " + limit);
+            Search::LimitsType limits = parse_limits(ss);
+
+            if (limits.perft)
+                nodesSearched = perft(limits);
+            else
+            {
+                engine.go(limits);
+                engine.wait_for_search_finished();
+            }
+
+            nodes += nodesSearched;
+            nodesSearched = 0;
         }
     }
 
-    elapsed = now() - elapsed + 1;  // Ensure positivity to avoid a 'divide by zero'
-
+    // Print debug info
     dbg_print();
+
+    elapsed = std::max(now() - startTime, TimePoint(1));  // Ensure positivity to avoid a 'divide by zero'
 
     std::cerr << "\n==========================="    //
               << "\nTotal time (ms) : " << elapsed  //
               << "\nNodes searched  : " << nodes    //
               << "\nNodes/second    : " << 1000 * nodes / elapsed << std::endl;
 
-    // reset callback, to not capture a dangling reference to nodesSearched
+    // Reset callback, to not capture a dangling reference to nodesSearched
     engine.set_on_update_full([&](const auto& i) { on_update_full(i, options["UCI_ShowWDL"]); });
 }
 
-void UCIEngine::benchmark(std::istream& args) {
+void UCIEngine::speedtest(std::istream& args) {
     // Probably not very important for a test this long, but include for completeness and sanity.
     static constexpr int NUM_WARMUP_POSITIONS = 3;
 
@@ -336,11 +387,10 @@ void UCIEngine::benchmark(std::istream& args) {
     engine.set_on_bestmove([](const auto&, const auto&) {});
     engine.set_on_verify_network([](const auto&) {});
 
-    Benchmark::BenchmarkSetup setup = Benchmark::setup_benchmark(args);
+    Benchmark::BenchmarkSetup setup = Benchmark::setup_speedtest(args);
 
     const auto numGoCommands = count_if(setup.commands.begin(), setup.commands.end(),
                                         [](const std::string& s) { return s.find("go ") == 0; });
-
 
     // Set options once at the start.
     auto ss = std::istringstream("name Threads value " + std::to_string(setup.threads));
@@ -468,8 +518,8 @@ void UCIEngine::benchmark(std::istream& args) {
               // "\nCompiled by                : "
               << compiler_info()
               << "Large pages                : " << (has_large_pages() ? "yes" : "no")
-              << "\nUser invocation            : " << BenchmarkCommand << " "
-              << setup.originalInvocation << "\nFilled invocation          : " << BenchmarkCommand
+              << "\nUser invocation            : " << "speedtest "
+              << setup.originalInvocation << "\nFilled invocation          : " << "speedtest"
               << " " << setup.filledInvocation
               << "\nAvailable processors       : " << engine.get_numa_config_as_string()
               << "\nThread count               : " << setup.threads
