@@ -35,7 +35,7 @@ struct BenchmarkSetup {
     std::string              filledInvocation;
 };
 
-BenchmarkSetup setup_benchmark(std::istream&);
+BenchmarkSetup setup_speedtest(std::istream&);
 
 }  // namespace Stockfish
 

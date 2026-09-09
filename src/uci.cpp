@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <iterator>
 #include <optional>
 #include <sstream>
@@ -46,8 +47,6 @@ namespace Stockfish {
 
 using Time = std::chrono::steady_clock;
 using ms   = std::chrono::milliseconds;
-
-constexpr auto BenchmarkCommand = "speedtest";
 
 template<typename... Ts>
 struct overload: Ts... {
@@ -154,8 +153,10 @@ void UCIEngine::loop() {
         }
         else if (token == "bench")
             bench(is);
-        else if (token == BenchmarkCommand)
-            benchmark(is);
+        else if (token == "bench2")
+            bench2(is);
+        else if (token == "speedtest")
+            speedtest(is);
         else if (token == "d")
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
@@ -314,7 +315,90 @@ void UCIEngine::bench(std::istream& args) {
     engine.set_on_update_full([&](const auto& i) { on_update_full(i, options["UCI_ShowWDL"]); });
 }
 
-void UCIEngine::benchmark(std::istream& args) {
+void UCIEngine::bench2(std::istream& args) {
+    std::string fen, token;
+    u64         nodes = 0, cnt = 1;
+    u64         nodesSearched = 0;
+    const auto& options       = engine.get_options();
+    TimePoint   elapsed;
+
+    engine.set_on_update_full([&](const auto& i) {
+        nodesSearched = i.nodes;
+        on_update_full(i, options["UCI_ShowWDL"]);
+    });
+
+    // Assign values to search arguments. All values must be specified, no default values
+    // will be assigned!
+    std::string ttSize    = (args >> token) ? token : "16";
+    std::string threads   = (args >> token) ? token : "1";
+    std::string limit     = (args >> token) ? token : "1";
+    std::string fenFile   = (args >> token) ? token : "default";
+    std::string limitType = (args >> token) ? token : "depth";
+
+    // Open the fen file
+    std::ifstream file(fenFile);
+
+    if (!file.is_open())
+    {
+        std::cerr << "Unable to open file " << fenFile << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Set options for Threads and Hash
+    auto ss = std::istringstream("name Threads value " + threads);
+    setoption(ss);
+    ss = std::istringstream("name Hash value " + ttSize);
+    setoption(ss);
+    engine.search_clear();
+    elapsed = now();
+
+    while (getline(file, fen))
+    {
+        if (fen.empty())
+            break;
+
+        ss = std::istringstream("fen " + fen);
+        position(ss);
+
+        std::cerr << "\nPosition: " << cnt++ << " (" << engine.fen() << ")" << std::endl;
+
+        if (limitType == "eval")
+            engine.trace_eval();
+        else
+        {
+            ss = std::istringstream(limitType + " " + limit);
+            Search::LimitsType limits = parse_limits(ss);
+
+            if (limits.perft)
+                nodesSearched = perft(limits);
+            else
+            {
+                engine.go(limits);
+                engine.wait_for_search_finished();
+            }
+
+            nodes += nodesSearched;
+            nodesSearched = 0;
+        }
+    }
+
+    // Close the fen file
+    file.close();
+
+    elapsed = now() - elapsed + 1;  // Ensure positivity to avoid a 'divide by zero'
+
+    dbg_print();
+
+    std::cerr << "\n==========================="    //
+              << "\nTotal time (ms) : " << elapsed  //
+              << "\nNodes searched  : " << nodes    //
+              << "\nNodes/second    : " << 1000 * nodes / elapsed << std::endl;
+
+    // reset callback, to not capture a dangling reference to nodesSearched
+    engine.set_on_update_full([&](const auto& i) { on_update_full(i, options["UCI_ShowWDL"]); });
+}
+
+void UCIEngine::speedtest(std::istream& args) {
     // Probably not very important for a test this long, but include for completeness and sanity.
     static constexpr int NUM_WARMUP_POSITIONS = 3;
 
@@ -327,11 +411,10 @@ void UCIEngine::benchmark(std::istream& args) {
     engine.set_on_bestmove([](const auto&, const auto&) {});
     engine.set_on_verify_network([](const auto&) {});
 
-    Benchmark::BenchmarkSetup setup = Benchmark::setup_benchmark(args);
+    Benchmark::BenchmarkSetup setup = Benchmark::setup_speedtest(args);
 
     const auto numGoCommands = count_if(setup.commands.begin(), setup.commands.end(),
                                         [](const std::string& s) { return s.find("go ") == 0; });
-
 
     // Set options once at the start.
     auto ss = std::istringstream("name Threads value " + std::to_string(setup.threads));
@@ -459,8 +542,8 @@ void UCIEngine::benchmark(std::istream& args) {
               // "\nCompiled by                : "
               << compiler_info()
               << "Large pages                : " << (has_large_pages() ? "yes" : "no")
-              << "\nUser invocation            : " << BenchmarkCommand << " "
-              << setup.originalInvocation << "\nFilled invocation          : " << BenchmarkCommand
+              << "\nUser invocation            : " << "speedtest "
+              << setup.originalInvocation << "\nFilled invocation          : " << "speedtest"
               << " " << setup.filledInvocation
               << "\nAvailable processors       : " << engine.get_numa_config_as_string()
               << "\nThread count               : " << setup.threads
