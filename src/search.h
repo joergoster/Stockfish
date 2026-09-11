@@ -388,7 +388,8 @@ class Worker {
 
     LimitsType limits;
 
-    usize              pvIdx, pvLast;
+    bool               smartMultiPvMode;
+    usize              multiPV, pvIdx, pvLast;
     RelaxedAtomic<u64> nodes, tbHits, bestMoveChanges;
     int                selDepth, nmpMinPly;
 

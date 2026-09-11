@@ -102,6 +102,9 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
       "Ponder", Option(false));
 
     options.add(  //
+      "SmartMultiPVMode", Option(true));
+
+    options.add(  //
       "MultiPV", Option(1, 1, MAX_MOVES));
 
     options.add("Skill Level", Option(20, 0, 20));
