@@ -113,8 +113,8 @@ Option::Option(int v, int minv, int maxv, OnChange f) :
 Option::Option(const char* v, const char* cur, OnChange f) :
     type("combo"),
     on_change(std::move(f)) {
-    defaultValue = v;
-    currentValue = cur;
+    defaultValue = currentValue = cur;
+    combolist = v;
 }
 
 Option::operator int() const {
@@ -161,10 +161,12 @@ Option& Option::operator=(const std::string& v) {
     {
         OptionsMap         comboMap;  // To have case insensitive compare
         std::string        token;
-        std::istringstream ss(defaultValue);
+        std::istringstream ss(combolist);
+
         while (ss >> token)
             comboMap.add(token, Option());
-        if (!comboMap.count(v) || v == "var")
+
+        if (!comboMap.count(v))
             return *this;
     }
 
@@ -192,8 +194,21 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
                 const Option& o = it.second;
                 os << "\noption name " << it.first << " type " << o.type;
 
-                if (o.type == "check" || o.type == "combo")
+                if (o.type == "check")
                     os << " default " << o.defaultValue;
+
+                else if (o.type == "combo")
+                {
+                    // Print the default value
+                    os << " default " << o.defaultValue;
+
+                    std::string        token;
+                    std::istringstream ss(o.combolist);
+
+                    // and then all available options with var prefix
+                    while (ss >> token)
+                        os << " var " << token;
+                }
 
                 else if (o.type == "string")
                 {

@@ -107,6 +107,12 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
     options.add(  //
       "MultiPV", Option(1, 1, MAX_MOVES));
 
+    // Example of a combo type option
+//    options.add(  //
+//      "Style", Option("Solid Normal Risky", "Normal", [](const Option&) {
+//          return std::nullopt;
+//      }));
+
     options.add("Skill Level", Option(20, 0, 20));
 
     options.add("Move Overhead", Option(10, 0, 5000));

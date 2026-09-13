@@ -61,7 +61,7 @@ class Option {
     friend class Engine;
     friend class Tune;
 
-
+    std::string       combolist; // For combo option only
     std::string       defaultValue, currentValue, type;
     int               min = 0, max = 0;
     usize             idx = 0;
