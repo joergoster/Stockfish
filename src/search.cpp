@@ -272,9 +272,7 @@ bool Search::Worker::iterative_deepening() {
 
     SearchManager* mainThread = (is_mainthread() ? main_manager() : nullptr);
 
-    PVMoves pv;
-
-    RootPVMoves lastBestMovePV;
+    PVMoves     pv, lastBestMovePV;
     Depth       lastBestMoveDepth = 0;
     Value       lastBestMoveScore = -VALUE_INFINITE;
 

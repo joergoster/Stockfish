@@ -60,13 +60,8 @@ class Network;
 
 namespace Search {
 
-// syzygy_extend_pv() may lead to PVs longer than MAX_PLY
-struct RootPVMoves: public std::vector<Move> {
-    RootPVMoves() { reserve(MAX_PLY); }
-};
-
 struct PVMoves {
-    Move  moves[MAX_PLY + 1];
+    Move  moves[MAX_PLY + 10]; // 256
     usize length = 0;
 
     Move*       begin() { return moves; }
@@ -83,30 +78,26 @@ struct PVMoves {
     void clear() { length = 0; }
 
     void push_back(Move move) {
-        assert(length < MAX_PLY + 1);
+        assert(length < MAX_PLY + 10);
         moves[length++] = move;
     }
 
     void resize(usize newSize) {
         assert(newSize <= length);
         length = newSize;
+        std::memset(moves + newSize , 0, (MAX_PLY + 10 - newSize) * sizeof(Move));
     }
 
     void update(Move move, const PVMoves* childPv) {
-        assert(childPv == nullptr || childPv->size() <= MAX_PLY);
-        length = childPv ? childPv->length : 0;
+        assert(childPv == nullptr || childPv->size() < MAX_PLY + 10);
+        moves[0] = move;
+        length = 1;
 
         if (childPv)
-            std::memcpy(moves + 1, childPv->moves, length * sizeof(Move));
-
-        moves[0] = move;
-        ++length;
-    }
-
-    PVMoves& operator=(const RootPVMoves& rhs) {
-        length = std::min(rhs.size(), usize(MAX_PLY));
-        std::memcpy(moves, rhs.data(), length * sizeof(Move));
-        return *this;
+        {
+            std::memcpy(moves + 1, childPv->moves, childPv->length * sizeof(Move));
+            length += childPv->length;
+        }
     }
 };
 
@@ -162,7 +153,7 @@ struct RootMove {
     int         selDepth           = 0;
     int         tbRank             = 0;
     Value       tbScore;
-    RootPVMoves pv, previousPV;
+    PVMoves     pv, previousPV;
 };
 
 using RootMoves = std::vector<RootMove>;
