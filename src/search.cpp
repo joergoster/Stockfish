@@ -351,7 +351,7 @@ bool Search::Worker::iterative_deepening() {
             rootMoves[i].previousScoreExact = i < multiPV;
 
             if (multiPV > 1 && smartMultiPvMode)
-                rootMoves[i].score = rootMoves[i].uciScore = -VALUE_INFINITE;
+                rootMoves[i].score = -VALUE_INFINITE;
         }
 
         usize pvFirst = pvLast = 0;
@@ -468,8 +468,7 @@ bool Search::Worker::iterative_deepening() {
                         && rootMoves[pvIdx].previousScoreExact
                         && rootMoves[pvIdx].previousScore <= rootMoves[pvIdx - 1].score)
                     {
-                        rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
-                          rootMoves[pvIdx].previousScore;
+                        rootMoves[pvIdx].score = rootMoves[pvIdx].previousScore;
                         rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
                         rootMoves[pvIdx].pv            = rootMoves[pvIdx].previousPV;
                         rootMoves[pvIdx].unset_inexact();
@@ -481,8 +480,7 @@ bool Search::Worker::iterative_deepening() {
                     {
                         if (is_loss(rootMoves[pvIdx - 1].score))
                         {
-                            rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
-                              rootMoves[pvIdx - 1].score;
+                            rootMoves[pvIdx].score = rootMoves[pvIdx - 1].score;
                             rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
                             rootMoves[pvIdx].pv.resize(1);
                             rootMoves[pvIdx].inexactUpper = true;
@@ -545,8 +543,8 @@ bool Search::Worker::iterative_deepening() {
             {
                 Utility::move_to_front(rootMoves, [&lastPV = std::as_const(lastBestMovePV)](
                                                     const auto& rm) { return rm == lastPV[0]; });
-                rootMoves[0].score = rootMoves[0].uciScore = lastBestMoveScore;
-                rootMoves[0].pv                            = lastBestMovePV;
+                rootMoves[0].score = lastBestMoveScore;
+                rootMoves[0].pv    = lastBestMovePV;
                 rootMoves[0].unset_inexact();
 
                 if (mainThread)
@@ -1523,20 +1521,12 @@ moves_loop:  // When in check, search starts here
             // PV move or new best move?
             if (moveCount == 1 || value > alpha)
             {
-                rm.score = rm.uciScore = value;
-                rm.selDepth            = selDepth;
                 rm.unset_inexact();
 
-                if (value >= beta)
-                {
-                    rm.inexactLower = true;
-                    rm.uciScore     = beta;
-                }
-                else if (value <= alpha)
-                {
-                    rm.inexactUpper = true;
-                    rm.uciScore     = alpha;
-                }
+                rm.score        = value;
+                rm.selDepth     = selDepth;
+                rm.inexactLower = value >= beta;
+                rm.inexactUpper = value <= alpha;
 
                 rm.pv.resize(1);
 
@@ -1555,7 +1545,7 @@ moves_loop:  // When in check, search starts here
                 // All other moves but the PV are set to the lowest value: this
                 // is not a problem when sorting because the sort is stable and the
                 // move position in the list is preserved -- just the PV is pushed up.
-                rm.score = rm.uciScore = -VALUE_INFINITE;
+                rm.score = -VALUE_INFINITE;
 
             // Reset selDepth before searching the next root move
             selDepth = 1;
@@ -2352,7 +2342,7 @@ void SearchManager::output_pv(Search::Worker&           worker,
             continue;
 
         Depth d = usePreviousScore ? std::max(1, depth - 1) : depth;
-        Value v = usePreviousScore ? rootMoves[i].previousScore : rootMoves[i].uciScore;
+        Value v = usePreviousScore ? rootMoves[i].previousScore : rootMoves[i].score;
 
         if (v == -VALUE_INFINITE)
             v = VALUE_ZERO;
