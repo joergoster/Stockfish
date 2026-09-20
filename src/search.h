@@ -230,7 +230,6 @@ struct InfoFull: InfoShort {
 };
 
 struct InfoIteration {
-    int              depth;
     std::string_view currmove;
     usize            currmovenumber;
 };

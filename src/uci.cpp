@@ -657,7 +657,8 @@ Move UCIEngine::to_move(const Position& pos, std::string str) {
 }
 
 void UCIEngine::on_update_no_moves(const Engine::InfoShort& info) {
-    sync_cout << "info depth " << info.depth << " score " << format_score(info.score) << sync_endl;
+    sync_cout << "info depth " << info.depth
+              << " score " << format_score(info.score) << sync_endl;
 }
 
 void UCIEngine::on_update_full(const Engine::InfoFull& info, bool showWDL) {
@@ -686,14 +687,9 @@ void UCIEngine::on_update_full(const Engine::InfoFull& info, bool showWDL) {
 }
 
 void UCIEngine::on_iter(const Engine::InfoIter& info) {
-    std::stringstream ss;
-
-    ss << "info";
-    ss << " depth " << info.depth                     //
-       << " currmove " << info.currmove               //
-       << " currmovenumber " << info.currmovenumber;  //
-
-    sync_cout << ss.str() << sync_endl;
+    sync_cout << "info currmove " << info.currmove
+              << " currmovenumber " << info.currmovenumber
+              << sync_endl;
 }
 
 void UCIEngine::on_bestmove(std::string_view bestmove, std::string_view ponder) {

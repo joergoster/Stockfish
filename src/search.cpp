@@ -1180,7 +1180,7 @@ moves_loop:  // When in check, search starts here
             if (main_manager()->newPVIdx && moveCount == 1)
             {
                 main_manager()->updates.onIter(
-                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
+                  {UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
 
                 main_manager()->newPVIdx = false;
             }
@@ -1188,7 +1188,7 @@ moves_loop:  // When in check, search starts here
                      && now() - main_manager()->lastInfoCurrmove > 200)
             {
                 main_manager()->updates.onIter(
-                  {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
+                  {UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
 
                 main_manager()->lastInfoCurrmove = now();
             }
