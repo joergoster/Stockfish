@@ -115,8 +115,6 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
-    options.add("nodestime", Option(0, 0, 10000));
-
     options.add("UCI_Chess960", Option(false));
 
     options.add("UCI_ShowWDL", Option(true));

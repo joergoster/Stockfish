@@ -232,12 +232,6 @@ void Search::Worker::start_searching() {
     // Wait until all threads have finished
     threads.wait_for_search_finished();
 
-    // When playing in 'nodes as time' mode, subtract the searched nodes from
-    // the available ones before exiting.
-    if (limits.npmsec)
-        main_manager()->tm.advance_nodes_time(threads.nodes_searched()
-                                              - limits.inc[rootPos.side_to_move()]);
-
     Worker* bestThread = this;
 
     if (!limits.depth)
@@ -1926,7 +1920,7 @@ int Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
 // instead. This function is called to check whether the search should be
 // stopped based on predefined thresholds like time limits or nodes searched.
 TimePoint Search::Worker::elapsed() const {
-    return main_manager()->tm.elapsed([this]() { return threads.nodes_searched(); });
+    return main_manager()->tm.elapsed_time();
 }
 
 
@@ -2104,7 +2098,7 @@ void SearchManager::check_time(Search::Worker& worker) {
 
     static TimePoint lastInfoTime = now();
 
-    TimePoint elapsed = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
+    TimePoint elapsed = worker.elapsed();
     TimePoint tick    = worker.limits.startTime + elapsed;
 
     if (tick - lastInfoTime >= 1000)

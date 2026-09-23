@@ -27,18 +27,6 @@
 
 namespace Stockfish {
 
-TimePoint TimeManagement::optimum() const { return optimumTime; }
-TimePoint TimeManagement::maximum() const { return maximumTime; }
-
-void TimeManagement::clear() {
-    availableNodes = -1;  // When in 'nodes as time' mode
-}
-
-void TimeManagement::advance_nodes_time(i64 nodes) {
-    assert(useNodesTime);
-    availableNodes = std::max(i64(0), availableNodes - nodes);
-}
-
 // Called at the beginning of the search and calculates
 // the bounds of time allowed for the current game ply. We currently support:
 //      1) x basetime (+ z increment)
@@ -48,15 +36,10 @@ void TimeManagement::init(Search::LimitsType& limits,
                           int                 ply,
                           const OptionsMap&   options,
                           double&             originalTimeAdjust) {
-    TimePoint npmsec = TimePoint(options["nodestime"]);
 
     // If we have no time, we don't need to fully initialize TM.
     // startTime is used by movetime and useNodesTime is used in elapsed calls.
-    startTime    = limits.startTime;
-    useNodesTime = npmsec != 0;
-
-    if (useNodesTime)
-        limits.movetime *= npmsec;
+    startTime = limits.startTime;
 
     if (limits.time[us] == 0)
     {
@@ -70,25 +53,9 @@ void TimeManagement::init(Search::LimitsType& limits,
     // maxScale is a multiplier applied to optimumTime.
     double optScale, maxScale;
 
-    // If we have to play in 'nodes as time' mode, then convert from time
-    // to nodes, and use resulting values in time management formulas.
-    // WARNING: to avoid time losses, the given npmsec (nodes per millisecond)
-    // must be much lower than the real engine speed.
-    if (useNodesTime)
-    {
-        if (availableNodes == -1)                       // Only once at game start
-            availableNodes = npmsec * limits.time[us];  // Time is in msec
-
-        // Convert from milliseconds to nodes
-        limits.time[us] = TimePoint(availableNodes);
-        limits.inc[us] *= npmsec;
-        limits.npmsec = npmsec;
-        moveOverhead *= npmsec;
-    }
-
     // These numbers are used where multiplications, divisions,
     // or comparisons with constants are involved.
-    const i64       scaleFactor = useNodesTime ? npmsec : 1;
+    const i64       scaleFactor = 1;
     const TimePoint scaledTime  = std::max(TimePoint(1), limits.time[us] / scaleFactor);
 
     // Maximum move horizon
@@ -139,6 +106,18 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
+}
+
+TimePoint TimeManagement::optimum() const {
+    return optimumTime;
+}
+
+TimePoint TimeManagement::maximum() const {
+    return maximumTime;
+}
+
+TimePoint TimeManagement::elapsed_time() const {
+    return now() - startTime;
 }
 
 }  // namespace Stockfish
