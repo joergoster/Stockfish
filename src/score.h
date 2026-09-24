@@ -31,7 +31,8 @@ class Position;
 class Score {
    public:
     struct Mate {
-        int plies;
+        int  plies;
+        bool win;
     };
 
     struct Tablebase {

@@ -573,14 +573,17 @@ int win_rate_model(Value v, const Position& pos) {
 }
 
 std::string UCIEngine::format_score(const Score& s) {
-    constexpr int TB_CP = 20000;
+
+    constexpr int TB_WIN_CP = 20000;
+
     const auto    format =
       overload{[](Score::Mate mate) -> std::string {
-                   auto m = (mate.plies > 0 ? (mate.plies + 1) : mate.plies) / 2;
-                   return std::string("mate ") + std::to_string(m);
+                   return std::string("mate ") + std::to_string((mate.win ? (mate.plies + 1) / 2
+                                                                          : -mate.plies / 2));
                },
                [](Score::Tablebase tb) -> std::string {
-                   return std::string("cp ") + std::to_string((tb.win ? TB_CP : -TB_CP) - tb.plies);
+                   return std::string("cp ") + std::to_string((tb.win ?  TB_WIN_CP - tb.plies
+                                                                      : -TB_WIN_CP + tb.plies));
                },
                [](Score::InternalUnits units) -> std::string {
                    return std::string("cp ") + std::to_string(units.value);
