@@ -2264,6 +2264,7 @@ void SearchManager::output_pv(Search::Worker&           worker,
                               Depth                     depth) {
 
     const auto nodes     = threads.nodes_searched();
+    const auto hashfull  = nodes < 100'000 ? 0 : tt.occupancy();
     auto&      rootMoves = worker.rootMoves;
     auto&      pos       = worker.rootPos;
     usize      multiPV   = std::min(usize(worker.options["MultiPV"]), rootMoves.size());
@@ -2325,7 +2326,7 @@ void SearchManager::output_pv(Search::Worker&           worker,
         info.nps       = nodes * 1000 / time;
         info.tbHits    = tbHits;
         info.pv        = pv;
-        info.hashfull  = tt.hashfull();
+        info.hashfull  = hashfull;
 
         updates.onUpdateFull(info);
     }

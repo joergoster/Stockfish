@@ -250,6 +250,19 @@ int TranspositionTable::hashfull(int maxAge) const {
 }
 
 
+// Returns an approximation of the hashtable occupation.
+// This function recognizes all entries, search results
+// of all ages and eval only entries.
+int TranspositionTable::occupancy() const {
+    int cnt = 0;
+    for (int i = 0; i < 1000; ++i)
+        for (int j = 0; j < ClusterSize; ++j)
+            cnt += table[i].entry[j].key16 != 0;
+
+    return cnt / ClusterSize;
+}
+
+
 // Must be called at the beginning of each root search to track entry aging
 void TranspositionTable::new_search() {
     ++generation8;

@@ -100,6 +100,7 @@ class TranspositionTable {
     // Approximate what fraction of entries (permille) have been written to
     // during this root search.
     int hashfull(int maxAge = 0) const;
+    int occupancy() const;
 
     // `probe(key)` is the primary method: given a board position, we lookup
     //  its entry in the table, and return a tuple of:
