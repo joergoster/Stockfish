@@ -234,7 +234,7 @@ void Search::Worker::start_searching() {
 
     Worker* bestThread = this;
 
-    if (!limits.depth)
+    if (!limits.depth && options["MultiPV"] == 1)
         bestThread = threads.get_best_thread()->worker.get();
 
     main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;

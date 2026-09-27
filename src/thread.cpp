@@ -34,6 +34,7 @@
 #include "bitboard.h"
 #include "history.h"
 #include "memory.h"
+#include "misc.h"
 #include "movegen.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"
@@ -353,54 +354,67 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     main_thread()->start_searching();
 }
 
+
+// ThreadPool::get_best_thread() picks the best thread at the end
+// of a multithreaded search based on our voting scheme.
 Thread* ThreadPool::get_best_thread() const {
 
     Thread* bestThread = threads.front().get();
-    Value   minScore   = VALUE_INFINITE;
+    std::map<u16, i64> votes;
+    Value maxScore = -VALUE_INFINITE;
+    Value minScore =  VALUE_INFINITE;
 
-    std::unordered_map<Move, i64, Move::MoveHash> votes(
-      2 * std::min(size(), bestThread->worker->rootMoves.size()));
-
-    for (auto&& th : threads)
-        minScore = std::min(minScore, th->worker->rootMoves[0].score);
-
-    // Vote according to score, and select the best thread
-    for (auto&& th : threads)
-        votes[th->worker->rootMoves[0].pv[0]] += th->worker->rootMoves[0].score - minScore + 14;
-
-    for (auto&& th : threads)
+    // Find minimum and maximum score of all threads
+    for (auto&& th: threads)
     {
-        const auto& bestThreadMove = bestThread->worker->rootMoves[0];
-        const auto& newThreadMove  = th->worker->rootMoves[0];
+        // Don't use invalid scores!
+        Value thScore = th->worker->rootMoves[0].score != -VALUE_INFINITE ? th->worker->rootMoves[0].score
+                                                                          : th->worker->rootMoves[0].previousScore;
+        if (thScore < minScore)
+            minScore = thScore;
 
-        const auto bestThreadMoveVote = votes[bestThreadMove.pv[0]];
-        const auto newThreadMoveVote  = votes[newThreadMove.pv[0]];
-
-        // Aborted (d1) searches may lead to inexact win (or loss) scores.
-        const bool bestThreadDecisive = bestThreadMove.score != -VALUE_INFINITE
-                                     && is_decisive(bestThreadMove.score)
-                                     && !bestThreadMove.is_inexact();
-        const bool newThreadDecisive = newThreadMove.score != -VALUE_INFINITE
-                                    && is_decisive(newThreadMove.score)
-                                    && !newThreadMove.is_inexact();
-
-        if (bestThreadDecisive)
+        // On equal scores prefer the thread with no fail-high or fail-low pv
+        if (   thScore > maxScore
+            || (   thScore == maxScore
+                && int(th->worker->rootMoves[0].pv.size()) > 2
+                && int(bestThread->worker->rootMoves[0].pv.size()) <= 2))
         {
-            // Make sure we pick the shortest mate / TB conversion.
-            if (newThreadDecisive && std::abs(newThreadMove.score) > std::abs(bestThreadMove.score))
-            {
-                assert((is_win(bestThreadMove.score) && is_win(newThreadMove.score))
-                       || (is_loss(bestThreadMove.score) && is_loss(newThreadMove.score)));
-
-                bestThread = th.get();
-            }
-        }
-        else if (newThreadDecisive
-                 || (!is_loss(newThreadMove.score)
-                     && (newThreadMoveVote > bestThreadMoveVote
-                         || (newThreadMoveVote == bestThreadMoveVote
-                             && newThreadMove.pv.size() > bestThreadMove.pv.size()))))
+            maxScore = thScore;
             bestThread = th.get();
+        }
+    }
+
+    assert(minScore > -VALUE_INFINITE);
+    assert(maxScore <  VALUE_INFINITE);
+
+    // Use our voting scheme if we didn't find
+    // a TB or even a mate score.
+    if (   minScore > VALUE_TB_LOSS_IN_MAX_PLY
+        && maxScore < VALUE_TB_WIN_IN_MAX_PLY)
+    {
+        // Reset bestThread
+        bestThread = threads.front().get();
+
+        // Our lambda function for voting
+        auto thread_value = [minScore](Thread* th) {
+            Value thScore = th->worker->rootMoves[0].score != -VALUE_INFINITE ? th->worker->rootMoves[0].score
+                                                                              : th->worker->rootMoves[0].previousScore;
+            return (thScore - minScore + 24) * int(th->worker->rootDepth) / 2;
+        };
+
+        // Vote according to score and depth and select the best thread.
+        // On equal votes, we prefer the thread with no fail-high or fail-low pv.
+        for (auto&& th : threads)
+            votes[th->worker->rootMoves[0].pv[0].raw()] += thread_value(th.get());
+
+        for (auto&& th : threads)
+        {
+            if (   votes[th->worker->rootMoves[0].pv[0].raw()] > votes[bestThread->worker->rootMoves[0].pv[0].raw()]
+                || (   votes[th->worker->rootMoves[0].pv[0].raw()] == votes[bestThread->worker->rootMoves[0].pv[0].raw()]
+                    && int(th->worker->rootMoves[0].pv.size()) > 2
+                    && int(bestThread->worker->rootMoves[0].pv.size()) <= 2))
+                bestThread = th.get();
+        }
     }
 
     return bestThread;
