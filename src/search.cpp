@@ -541,9 +541,14 @@ bool Search::Worker::iterative_deepening() {
         }
 
         // Have we found a "mate in x" after a completed iteration?
-        if (limits.mate && !threads.stop && is_mate_or_mated(rootMoves[0].score)
-            && VALUE_MATE - std::abs(rootMoves[0].score) <= 2 * limits.mate)
-            threads.stop = true;
+        if (limits.mate && rootMoves[0].score >= VALUE_MATE_IN_MAX_PLY)
+        {
+            if (rootMoves[0].score > VALUE_MATE - 2 * limits.mate)
+                threads.stop = true;
+
+            if (!threads.stop && rootMoves[0].score >= VALUE_MATE - 2 * limits.mate - 9)
+                rootDepth += 3;
+        }
 
         if (!mainThread)
             continue;
