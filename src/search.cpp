@@ -1463,7 +1463,15 @@ moves_loop:  // When in check, search starts here
         // and we return immediately without updating the best move,
         // principal variation or transposition table.
         if (threads.stop.load(std::memory_order_relaxed))
+        {
+            // At root, reset scores of this PV line and all remaining
+            // root moves, as they cannot be trusted!
+            if (rootNode)
+                for (size_t i = pvIdx; i < rootMoves.size(); i++)
+                    rootMoves[i].score = -VALUE_INFINITE;
+
             return VALUE_ZERO;
+        }
 
         if (rootNode)
         {
