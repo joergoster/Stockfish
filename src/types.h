@@ -114,6 +114,7 @@ using Bitboard = u64;
 
 constexpr int MAX_MOVES = 256;
 constexpr int MAX_PLY   = 246;
+constexpr int MAX_PV    = 256;
 
 enum Color : u8 {
     WHITE,

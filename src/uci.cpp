@@ -605,7 +605,7 @@ int UCIEngine::to_cp(Value v, const Position& pos) {
     return int(std::round(100 * int(v) / a));
 }
 
-std::string UCIEngine::wdl(Value v, const Position& pos) {
+std::string UCIEngine::wdl_from_value(Value v, const Position& pos) {
     std::stringstream ss;
 
     int wdl_w = win_rate_model(v, pos);
@@ -613,6 +613,18 @@ std::string UCIEngine::wdl(Value v, const Position& pos) {
     int wdl_d = 1000 - wdl_w - wdl_l;
     ss << wdl_w << " " << wdl_d << " " << wdl_l;
 
+    return ss.str();
+}
+
+std::string UCIEngine::wdl_from_search(const u64 w, const u64 d, const u64 l) {
+    std::stringstream ss;
+    u64 sum = w + d + l + 1;
+
+    int wdl_w = int(double(w) / sum * 1000 + 0.5);
+    int wdl_l = int(double(l) / sum * 1000 + 0.5);
+    int wdl_d = 1000 - wdl_w - wdl_l;
+
+    ss << wdl_w << " " << wdl_d << " " << wdl_l;
     return ss.str();
 }
 
@@ -683,6 +695,7 @@ void UCIEngine::on_update_full(const Engine::InfoFull& info, bool showWDL) {
        << " nps " << info.nps            //
        << " hashfull " << info.hashfull  //
        << " tbhits " << info.tbHits      //
+       << " pvnodes " << info.pvnodes    //
        << " time " << info.timeMs        //
        << " pv " << info.pv;             //
 

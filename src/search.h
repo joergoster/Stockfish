@@ -28,6 +28,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <cstring>
 
@@ -61,7 +62,7 @@ class Network;
 namespace Search {
 
 struct PVMoves {
-    Move  moves[MAX_PLY + 10]; // 256
+    Move  moves[MAX_PV]; // 256
     usize length = 0;
 
     Move*       begin() { return moves; }
@@ -78,18 +79,18 @@ struct PVMoves {
     void clear() { length = 0; }
 
     void push_back(Move move) {
-        assert(length < MAX_PLY + 10);
+        assert(length < MAX_PV);
         moves[length++] = move;
     }
 
     void resize(usize newSize) {
         assert(newSize <= length);
         length = newSize;
-        std::memset(moves + newSize , 0, (MAX_PLY + 10 - newSize) * sizeof(Move));
+        std::memset(moves + newSize , 0, (MAX_PV - newSize) * sizeof(Move));
     }
 
     void update(Move move, const PVMoves* childPv) {
-        assert(childPv == nullptr || childPv->size() < MAX_PLY + 10);
+        assert(childPv == nullptr || childPv->size() < MAX_PV);
         moves[0] = move;
         length = 1;
 
@@ -156,7 +157,7 @@ struct RootMove {
 };
 
 using RootMoves = std::vector<RootMove>;
-
+using HitsPerRootMove = std::unordered_map<u16, std::atomic<u64>>;
 
 // LimitsType struct stores information sent by the caller about the analysis required.
 struct LimitsType {
@@ -224,6 +225,7 @@ struct InfoFull: InfoShort {
     usize            nodes;
     usize            nps;
     usize            tbHits;
+    usize            pvnodes;
     std::string_view pv;
     int              hashfull;
 };
@@ -362,6 +364,7 @@ class Worker {
     RootMoves rootMoves;
     Depth     rootDepth;
     Value     rootDelta;
+    Move      currentRootMove;
 
     PVMoves lastIterationIdxPV;
 
