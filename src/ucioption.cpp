@@ -137,11 +137,14 @@ bool Option::operator!=(const char* s) const { return !(*this == s); }
 static bool value_in_range(const std::string& v, int min, int max) {
     if (v.empty())
         return false;
+
     errno                  = 0;
     char*           end    = nullptr;
     const long long result = std::strtoll(v.c_str(), &end, 10);
+
     if (errno == ERANGE || *end != '\0')
         return false;
+
     return result >= min && result <= max;
 }
 
@@ -170,10 +173,15 @@ Option& Option::operator=(const std::string& v) {
             return *this;
     }
 
-    if (type == "string")
-        currentValue = v == "<empty>" ? "" : v;
-    else if (type != "button")
-        currentValue = v;
+    const std::string newValue = type == "string" && v == "<empty>" ? "" : v;
+
+    if (type != "button")
+    {
+        if (newValue == currentValue)
+            return *this;
+
+        currentValue = newValue;
+    }
 
     if (on_change)
     {
@@ -187,6 +195,7 @@ Option& Option::operator=(const std::string& v) {
 }
 
 std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
+
     for (usize idx = 0; idx < om.options_map.size(); ++idx)
         for (const auto& it : om.options_map)
             if (it.second.idx == idx)
