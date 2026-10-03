@@ -23,7 +23,6 @@
 #include "attacks.h"
 #include "misc.h"
 #include "position.h"
-#include "tune.h"
 #include "uci.h"
 
 using namespace Stockfish;
@@ -44,8 +43,6 @@ int main(int argc, char* argv[]) {
 
     auto cli = CommandLine(argc, argv);
     auto uci = std::make_unique<UCIEngine>(std::move(cli));
-
-    Tune::init(uci->engine_options());
 
     uci->loop();
 
