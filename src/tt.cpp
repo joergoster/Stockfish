@@ -33,10 +33,9 @@
 
 namespace Stockfish {
 
-
-// TTEntry struct is the 10 bytes transposition table entry, defined as:
+// TTEntry struct is the 16-byte transposition table entry, defined as:
 //
-// key        16 bit
+// key        64 bit
 // depth       8 bit
 // pv node     1 bit
 // bound type  2 bit
@@ -74,7 +73,7 @@ struct TTEntry {
     }
 
     // Check if the TT entry is occupied
-    bool is_occupied() const { return bool(depth8); };
+    bool is_occupied() const { return bool(depth8); }
 
     // Insert data in the TT entry
     void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 curr_generation);
@@ -86,14 +85,14 @@ struct TTEntry {
     friend class TranspositionTable;
     friend struct TTWriter;
 
-    RelaxedAtomic<u16>  key16;
-    RelaxedAtomic<u8>   depth8;
-    RelaxedAtomic<u8>   genBound8;
-    RelaxedAtomic<Move> move16;
-    RelaxedAtomic<i16>  value16;
-    RelaxedAtomic<i16>  eval16;
+    RelaxedAtomic<Key>  key64;      // 8 bytes
+    RelaxedAtomic<u8>   depth8;     // 1 byte
+    RelaxedAtomic<u8>   genBound8;  // 1 byte
+    RelaxedAtomic<Move> move16;     // 2 bytes
+    RelaxedAtomic<i16>  value16;    // 2 bytes
+    RelaxedAtomic<i16>  eval16;     // 2 bytes
 };
-
+// Total: 8 + 1 + 1 + 2 + 2 + 2 = 16 bytes
 
 // Populates the TTEntry with a new node's data, possibly overwriting an old
 // position. The update is non-atomic and can be racy. We convert external
@@ -102,18 +101,18 @@ void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 curr_generation) {
 
     // Preserve the old ttmove if we don't have a new one
-    if (m || u16(k) != key16)
+    if (m || k != key64)
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || u16(k) != key16 || d - DEPTH_NONE + 2 * pv > depth8 - 4
+    if (b == BOUND_EXACT || k != key64 || d - DEPTH_NONE + 2 * pv > depth8 - 4
         || relative_age(curr_generation))
     {
         assert(d > DEPTH_NONE);
         assert(d - DEPTH_NONE < 256);
         assert(curr_generation <= GENERATION_MASK);  // TT::new_search() plays nice
 
-        key16     = u16(k);
+        key64     = k;
         depth8    = u8(d - DEPTH_NONE);
         genBound8 = u8(curr_generation | b << BOUND_SHIFT | u8(pv) << PV_SHIFT);
         value16   = i16(v);
@@ -165,18 +164,18 @@ void TTWriter::penalize(int penalty) {
 // divide the size of a cache line for best performance, as the cacheline is
 // prefetched when possible.
 
-static constexpr int ClusterSize = 3;
+static constexpr int ClusterSize = 2;
 
 struct Cluster {
     TTEntry entry[ClusterSize];
-    char    padding[2];  // Pad to 32 bytes
+    // 2 * 16 bytes = 32 bytes exactly, so no padding needed
 };
 
 static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 
 
 // Sets the size of the transposition table, measured in megabytes.
-// Transposition table consists of clusters and each cluster consists
+// The transposition table consists of clusters and each cluster consists
 // of ClusterSize number of TTEntry.
 void TranspositionTable::resize(usize mbSize, ThreadPool& threads) {
     aligned_large_pages_free(table);
@@ -257,7 +256,7 @@ int TranspositionTable::occupancy() const {
     int cnt = 0;
     for (int i = 0; i < 1000; ++i)
         for (int j = 0; j < ClusterSize; ++j)
-            cnt += table[i].entry[j].key16 != 0;
+            cnt += table[i].entry[j].key64 != 0;
 
     return cnt / ClusterSize;
 }
@@ -283,10 +282,10 @@ u8 TranspositionTable::generation() const { return generation8; }
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
-    const u16      key16 = u16(key);  // Use the low 16 bits as key inside the cluster
+    const Key      key64 = key;  // Use the full 64-bit key as the exact key
 
     for (int i = 0; i < ClusterSize; ++i)
-        if (tte[i].key16 == key16)
+        if (tte[i].key64 == key64)
             // This gap is the main place for read races.
             // After `read()` completes that copy is final, but may be self-inconsistent.
             return {tte[i].is_occupied(), tte[i].read(), TTWriter(&tte[i])};
