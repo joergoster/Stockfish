@@ -101,19 +101,21 @@ struct TTEntry {
 void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 curr_generation) {
 
+    const u16 key = u16(k ^ (k >> 32));
+
     // Preserve the old ttmove if we don't have a new one
-    if (m || u16(k) != key16)
+    if (m || key != key16)
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || u16(k) != key16 || d - DEPTH_NONE + 2 * pv > depth8 - 4
+    if (b == BOUND_EXACT || key != key16 || d - DEPTH_NONE + 2 * pv > depth8 - 4
         || relative_age(curr_generation))
     {
         assert(d > DEPTH_NONE);
         assert(d - DEPTH_NONE < 256);
         assert(curr_generation <= GENERATION_MASK);  // TT::new_search() plays nice
 
-        key16     = u16(k);
+        key16     = key;
         depth8    = u8(d - DEPTH_NONE);
         genBound8 = u8(curr_generation | b << BOUND_SHIFT | u8(pv) << PV_SHIFT);
         value16   = i16(v);
@@ -270,7 +272,7 @@ u8 TranspositionTable::generation() const { return generation8; }
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
-    const u16      key16 = u16(key);  // Use the low 16 bits as key inside the cluster
+    const u16      key16 = u16(key ^ (key >> 32));  // XOR the lowest 16 bits with the second highest 16 bits
 
     for (int i = 0; i < ClusterSize; ++i)
         if (tte[i].key16 == key16)
