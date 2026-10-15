@@ -101,7 +101,7 @@ struct TTEntry {
 void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 curr_generation) {
 
-    const u32 key = u32(k >> 32);
+    const u32 key = u32(k);
 
     // Preserve the old ttmove if we don't have a new one
     if (m || key != key32)
@@ -272,7 +272,7 @@ u8 TranspositionTable::generation() const { return generation8; }
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
-    const u32      key32 = u32(key >> 32);
+    const u32      key32 = u32(key);
 
     for (int i = 0; i < ClusterSize; ++i)
         if (tte[i].key32 == key32)
