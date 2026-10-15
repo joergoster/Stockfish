@@ -34,9 +34,9 @@
 namespace Stockfish {
 
 
-// TTEntry struct is the 10 bytes transposition table entry, defined as:
+// TTEntry struct is the 12 bytes transposition table entry, defined as:
 //
-// key        16 bit
+// key        32 bit
 // depth       8 bit
 // pv node     1 bit
 // bound type  2 bit
@@ -86,7 +86,7 @@ struct TTEntry {
     friend class TranspositionTable;
     friend struct TTWriter;
 
-    RelaxedAtomic<u16>  key16;
+    RelaxedAtomic<u32>  key32;
     RelaxedAtomic<u8>   depth8;
     RelaxedAtomic<u8>   genBound8;
     RelaxedAtomic<Move> move16;
@@ -101,19 +101,21 @@ struct TTEntry {
 void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 curr_generation) {
 
+    const u32 key = u32(k >> 32);
+
     // Preserve the old ttmove if we don't have a new one
-    if (m || u16(k) != key16)
+    if (m || key != key32)
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || u16(k) != key16 || d - DEPTH_NONE + 2 * pv > depth8 - 4
+    if (b == BOUND_EXACT || key != key32 || d - DEPTH_NONE + 2 * pv > depth8 - 4
         || relative_age(curr_generation))
     {
         assert(d > DEPTH_NONE);
         assert(d - DEPTH_NONE < 256);
         assert(curr_generation <= GENERATION_MASK);  // TT::new_search() plays nice
 
-        key16     = u16(k);
+        key32     = key;
         depth8    = u8(d - DEPTH_NONE);
         genBound8 = u8(curr_generation | b << BOUND_SHIFT | u8(pv) << PV_SHIFT);
         value16   = i16(v);
@@ -165,14 +167,14 @@ void TTWriter::penalize(int penalty) {
 // divide the size of a cache line for best performance, as the cacheline is
 // prefetched when possible.
 
-static constexpr int ClusterSize = 3;
+static constexpr int ClusterSize = 5;
 
 struct Cluster {
     TTEntry entry[ClusterSize];
-    char    padding[2];  // Pad to 32 bytes
+    char    padding[4];  // Pad to 64 bytes
 };
 
-static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
+static_assert(sizeof(Cluster) == 64, "Suboptimal Cluster size");
 
 
 // Sets the size of the transposition table, measured in megabytes.
@@ -270,10 +272,10 @@ u8 TranspositionTable::generation() const { return generation8; }
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
-    const u16      key16 = u16(key);  // Use the low 16 bits as key inside the cluster
+    const u32      key32 = u32(key >> 32);
 
     for (int i = 0; i < ClusterSize; ++i)
-        if (tte[i].key16 == key16)
+        if (tte[i].key32 == key32)
             // This gap is the main place for read races.
             // After `read()` completes that copy is final, but may be self-inconsistent.
             return {tte[i].is_occupied(), tte[i].read(), TTWriter(&tte[i])};
