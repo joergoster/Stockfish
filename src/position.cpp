@@ -121,21 +121,18 @@ void Position::init() {
 
     PRNG rng(1070372);
 
+    Zobrist::side    = rng.rand<Key>();
+    Zobrist::noPawns = rng.rand<Key>();
+
     for (Piece pc : Pieces)
         for (Square s = SQ_A1; s <= SQ_H8; ++s)
             Zobrist::psq[pc][s] = rng.rand<Key>();
-    // pawns on these squares will promote
-    std::fill_n(Zobrist::psq[W_PAWN] + SQ_A8, 8, 0);
-    std::fill_n(Zobrist::psq[B_PAWN], 8, 0);
 
     for (File f = FILE_A; f <= FILE_H; ++f)
         Zobrist::enpassant[f] = rng.rand<Key>();
 
     for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
         Zobrist::castling[cr] = rng.rand<Key>();
-
-    Zobrist::side    = rng.rand<Key>();
-    Zobrist::noPawns = rng.rand<Key>();
 
     // Prepare the cuckoo tables
     cuckoo.fill(0);
@@ -532,7 +529,7 @@ Key Position::compute_material_key() const {
     Key k = 0;
     for (Piece pc : Pieces)
         for (int cnt = 0; cnt < pieceCount[pc]; ++cnt)
-            k ^= Zobrist::psq[pc][8 + cnt];
+            k ^= Zobrist::psq[pc][cnt];
     return k;
 }
 
@@ -912,7 +909,7 @@ void Position::do_move(Move                      m,
 
         k ^= Zobrist::psq[captured][capsq];
         st->materialKey ^=
-          Zobrist::psq[captured][8 + pieceCount[captured] - (m.type_of() != EN_PASSANT)];
+          Zobrist::psq[captured][pieceCount[captured] - (m.type_of() != EN_PASSANT)];
 
         // Reset rule 50 counter
         st->rule50 = 0;
@@ -977,9 +974,9 @@ void Position::do_move(Move                      m,
 
             // Update hash keys
             // Zobrist::psq[pc][to] is zero, so we don't need to clear it
-            k ^= Zobrist::psq[promotion][to];
-            st->materialKey ^= Zobrist::psq[promotion][8 + pieceCount[promotion]]
-                             ^ Zobrist::psq[pc][8 + pieceCount[pc] - 1];
+            k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
+            st->materialKey ^= Zobrist::psq[promotion][pieceCount[promotion]]
+                             ^ Zobrist::psq[pc][pieceCount[pc] - 1];
             st->nonPawnKey[us] ^= Zobrist::psq[promotion][to];
 
             if (pt <= BISHOP)
@@ -1049,6 +1046,8 @@ void Position::do_move(Move                      m,
 
     // Update king attacks used for fast check detection
     set_check_info();
+
+    assert(st->materialKey == compute_material_key()); // TODO Check other keys, too!
 
     // Calculate the repetition info. It is the ply distance from the previous
     // occurrence of the same position, negative in the 3-fold case, or zero
