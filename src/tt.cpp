@@ -164,14 +164,13 @@ void TTWriter::penalize(int penalty) {
 // divide the size of a cache line for best performance, as the cacheline is
 // prefetched when possible.
 
-static constexpr int ClusterSize = 2;
+static constexpr int ClusterSize = 4;
 
 struct Cluster {
     TTEntry entry[ClusterSize];
-    // 2 * 16 bytes = 32 bytes exactly, so no padding needed
 };
 
-static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
+static_assert(sizeof(Cluster) == 64, "Suboptimal Cluster size");
 
 
 // Sets the size of the transposition table, measured in megabytes.
