@@ -178,6 +178,7 @@ class Position {
     // Position consistency check, for debugging
     bool                            pos_is_ok() const;
     bool                            material_key_is_ok() const;
+    std::optional<PositionSetError> check_keys();
     std::optional<PositionSetError> flip();
 
     StateInfo* state() const;

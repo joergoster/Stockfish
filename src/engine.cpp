@@ -320,6 +320,7 @@ OptionsMap&       Engine::get_options() { return options; }
 
 std::string Engine::fen() const { return pos.fen(); }
 
+std::optional<PositionSetError> Engine::check_keys() { return pos.check_keys(); }
 std::optional<PositionSetError> Engine::flip() { return pos.flip(); }
 
 std::string Engine::visualize() const {

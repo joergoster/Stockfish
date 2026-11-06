@@ -146,6 +146,16 @@ void UCIEngine::loop() {
             sync_cout << "readyok" << sync_endl;
 
         // Add custom non-UCI commands, mainly for debugging purposes.
+        else if (token == "zobrist")
+        {
+            sync_cout << "info string Checking Zobrist keys ..." << sync_endl;
+
+            if (auto err = engine.check_keys())
+            {
+                terminate_on_critical_error(err->what());
+            }
+            sync_cout << "info string No collisions detected!" << sync_endl;
+        }
         else if (token == "flip")
         {
             if (auto err = engine.flip())

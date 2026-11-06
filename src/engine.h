@@ -109,6 +109,7 @@ class Engine {
     int get_hashfull(int maxAge = 0) const;
 
     std::string                          fen() const;
+    std::optional<PositionSetError>      check_keys();
     std::optional<PositionSetError>      flip();
     std::string                          visualize() const;
     std::vector<std::pair<usize, usize>> get_bound_thread_count_by_numa_node() const;

@@ -142,6 +142,28 @@ inline constexpr auto PawnPairBB = []() {
 // The geometry is color-independent.
 constexpr Bitboard pawn_pair_bb(Square s) { return PawnPairBB[s]; }
 
+
+// distance() functions return the distance between x and y, defined as the
+// number of steps for a king in x to reach y.
+
+template<typename T1 = Square>
+inline int distance(Square x, Square y);
+
+template<>
+inline int distance<File>(Square x, Square y) {
+    return std::abs(file_of(x) - file_of(y));
+}
+
+template<>
+inline int distance<Rank>(Square x, Square y) {
+    return std::abs(rank_of(x) - rank_of(y));
+}
+
+template<>
+inline int distance<Square>(Square x, Square y) {
+    return std::max(distance<File>(x, y), distance<Rank>(x, y));
+}
+
 constexpr int edge_distance(File f) { return std::min(f, File(FILE_H - f)); }
 
 template<typename T>
