@@ -1525,12 +1525,12 @@ bool Position::material_key_is_ok() const { return compute_material_key() == st-
 // Check the Zobrist keys for collisions
 std::optional<PositionSetError> Position::check_keys() {
 
-    int failure = 0;
-    std::vector<Key> allKeys;
+    int collisions = 0;
+    std::vector<Key> originalKeys, generatedKeys;
 
     for (Piece pc : { W_PAWN, B_PAWN })
         for (Square s = SQ_A2; s <= SQ_H7; ++s)
-            allKeys.push_back(Zobrist::psq[pc][s]);
+            originalKeys.push_back(Zobrist::psq[pc][s]);
 
     for (Piece pc : Pieces)
     {
@@ -1538,23 +1538,24 @@ std::optional<PositionSetError> Position::check_keys() {
             continue;
 
         for (Square s = SQ_A1; s <= SQ_H8; ++s)
-            allKeys.push_back(Zobrist::psq[pc][s]);
+            originalKeys.push_back(Zobrist::psq[pc][s]);
     }
 
     for (File f = FILE_A; f <= FILE_H; ++f)
-        allKeys.push_back(Zobrist::enpassant[f]);
+        originalKeys.push_back(Zobrist::enpassant[f]);
 
     for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
-        allKeys.push_back(Zobrist::castling[cr]);
+        originalKeys.push_back(Zobrist::castling[cr]);
 
-    allKeys.push_back(Zobrist::side);
-    allKeys.push_back(Zobrist::noPawns);
+    originalKeys.push_back(Zobrist::side);
+    originalKeys.push_back(Zobrist::noPawns);
 
     // First, check that all keys are unique
-    for (const auto k : allKeys)
-        if (std::count(allKeys.begin(), allKeys.end(), k) > 1)
-            failure++;
+    for (const auto k : originalKeys)
+        if (std::count(originalKeys.begin(), originalKeys.end(), k) > 1)
+            collisions++;
 
+    // Generate all possible KK keys
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
        for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
        {
@@ -1562,27 +1563,49 @@ std::optional<PositionSetError> Position::check_keys() {
                continue;
 
            Key key1 = Zobrist::psq[W_KING][s1] ^ Zobrist::psq[B_KING][s2];
+           generatedKeys.push_back(key1);
+       }  // 2 KINGs
 
-           if (std::count(allKeys.begin(), allKeys.end(), key1))
-               failure++;
+    // Generate all possible keys for two pieces
+    // of the same kind for one color.
+    for (Piece pc : { W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN,
+                      B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN })
+        for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
+            for (Square s2 = s1 + EAST; s2 <= SQ_H8; ++s2)
+            {
+                if (s1 == s2)
+                    continue;
 
-           for (Square s3 = s1 + EAST; s3 <= SQ_H8; ++s3)
-               for (Square s4 = SQ_A1; s4 <= SQ_H8; ++s4)
-               {
-                   if (distance(s3, s4) < 2)
-                       continue;
+                Key key2 = Zobrist::psq[pc][s1] ^ Zobrist::psq[pc][s2];
+                generatedKeys.push_back(key2);
+            }
 
-                   Key key2 = Zobrist::psq[W_KING][s3] ^ Zobrist::psq[B_KING][s4];
+    // Generate all possible keys for three pieces
+    // of the same kind for one color.
+    for (Piece pc : { W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN,
+                      B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN })
+        for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
+            for (Square s2 = s1 + EAST; s2 <= SQ_H8; ++s2)
+                for (Square s3 = s2 + EAST; s3 <= SQ_H8; ++s3)
+                {
+//           if (s1 == s2)
+//               continue;
 
-                   if (std::count(allKeys.begin(), allKeys.end(), key2))
-                       failure++;
+                    Key key3 = Zobrist::psq[pc][s1] ^ Zobrist::psq[pc][s2] ^ Zobrist::psq[pc][s3];
+                    generatedKeys.push_back(key3);
+                }
 
-                   if (key1 == key2)
-                       failure++;
-               }
-       }  // KINGs
+    // Check that all generated keys are unique
+    for (const auto k : generatedKeys)
+    {
+        if (std::count(originalKeys.begin(), originalKeys.end(), k))
+            collisions++;
 
-    if (failure)
+        if (std::count(generatedKeys.begin(), generatedKeys.end(), k) > 1)
+            collisions++;
+    }
+
+    if (collisions)
         return PositionSetError("Key collisions detected!");
 
     return std::nullopt;
