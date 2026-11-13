@@ -64,6 +64,8 @@ struct StateInfo {
     Bitboard   threats[PIECE_TYPE_NB];
     Piece      capturedPiece;
     int        repetition;
+
+    std::array<Piece, SQUARE_NB> board;
 };
 
 

@@ -494,6 +494,7 @@ void Position::compute_threats() const {
 // The function is only used when a new position is set up
 void Position::set_state() const {
 
+    st->board             = board;
     st->key               = 0;
     st->minorPieceKey     = 0;
     st->nonPawnKey[WHITE] = st->nonPawnKey[BLACK] = 0;
@@ -995,6 +996,9 @@ void Position::do_move(
         }
     }
 
+    // Copy board
+    st->board = board;
+
     // Set capture piece
     st->capturedPiece = captured;
 
@@ -1017,7 +1021,7 @@ void Position::do_move(
         for (int i = 4; i <= end; i += 2)
         {
             stp = stp->previous->previous;
-            if (stp->key == st->key)
+            if (stp->key == st->key && stp->board == st->board)
             {
                 st->repetition = stp->repetition ? -i : i;
                 break;
@@ -1317,7 +1321,7 @@ void Position::do_null_move(StateInfo& newSt) {
     st->key ^= Zobrist::side;
 
     st->pliesFromNull = 0;
-
+    st->board         = board; // Probably not needed
     st->capturedPiece = NO_PIECE;
 
     sideToMove = ~sideToMove;
@@ -1511,7 +1515,8 @@ bool Position::upcoming_repetition(int ply) const {
 
             // For nodes before or at the root, check that the move is a
             // repetition rather than a move to the current position.
-            if (!((between_bb(s1, s2) ^ s2) & pieces()) && (ply > i || stp->repetition))
+            if (!((between_bb(s1, s2) ^ s2) & pieces()) 
+               && stp->board == st->board && (ply > i || stp->repetition))
                 return true;
         }
     }
