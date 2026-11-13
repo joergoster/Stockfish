@@ -1515,9 +1515,18 @@ bool Position::upcoming_repetition(int ply) const {
 
             // For nodes before or at the root, check that the move is a
             // repetition rather than a move to the current position.
-            if (!((between_bb(s1, s2) ^ s2) & pieces()) 
-               && stp->board == st->board && (ply > i || stp->repetition))
-                return true;
+            if (!((between_bb(s1, s2) ^ s2) & pieces()))
+            {
+                auto b = st->board;
+
+                // Swap pieces
+                auto swapPiece = b[s1];
+                b[s1] = b[s2];
+                b[s2] = swapPiece;
+
+                if (b == stp->board && (ply > i || stp->repetition))
+                    return true;
+            }
         }
     }
     return false;
