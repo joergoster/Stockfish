@@ -1496,7 +1496,7 @@ bool Position::see_ge(Move m, int threshold) const {
 bool Position::is_draw(int ply) const {
 
     // A checkmate position cannot be a draw
-    if (checkers() && !MoveList<ALL>(*this).size())
+    if (checkers() && !MoveList<LEGAL>(*this).size())
         return false;
 
     return (st->rule50 > 99 || is_repetition(ply));
