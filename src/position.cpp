@@ -119,14 +119,32 @@ static std::array<Move, 8192> cuckooMove;
 // Initializes at startup the various arrays used to compute hash keys
 void Position::init() {
 
-    PRNG rng(1070372);
+    PRNG rng(0x8d00324128105524ULL);
 
     Zobrist::side    = rng.rand<Key>();
     Zobrist::noPawns = rng.rand<Key>();
 
-    for (Piece pc : Pieces)
-        for (Square s = SQ_A1; s <= SQ_H8; ++s)
-            Zobrist::psq[pc][s] = rng.rand<Key>();
+    // Instead of filling all squares for each piece sequentially,
+    // fill one square after another for all pieces in a more
+    // randomized fashion. Hopefully, this reduces the probability
+    // of producing the same hash key for similar positions.
+    // Note: this is a fully speculative patch, and only practice will
+    // tell if this is of any merit!
+    for (Square s = SQ_A1; s <= SQ_H8; ++s)
+    {
+        Zobrist::psq[W_PAWN][s]   = rng.rand<Key>();
+        Zobrist::psq[W_ROOK][s]   = rng.rand<Key>();
+        Zobrist::psq[B_QUEEN][s]  = rng.rand<Key>();
+        Zobrist::psq[W_KNIGHT][s] = rng.rand<Key>();
+        Zobrist::psq[B_KING][s]   = rng.rand<Key>();
+        Zobrist::psq[W_KING][s]   = rng.rand<Key>();
+        Zobrist::psq[B_KNIGHT][s] = rng.rand<Key>();
+        Zobrist::psq[B_ROOK][s]   = rng.rand<Key>();
+        Zobrist::psq[W_QUEEN][s]  = rng.rand<Key>();
+        Zobrist::psq[B_BISHOP][s] = rng.rand<Key>();
+        Zobrist::psq[B_PAWN][s]   = rng.rand<Key>();
+        Zobrist::psq[W_BISHOP][s] = rng.rand<Key>();
+    }
 
     for (File f = FILE_A; f <= FILE_H; ++f)
         Zobrist::enpassant[f] = rng.rand<Key>();
